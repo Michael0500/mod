@@ -40,6 +40,7 @@ var MatchingMixin = {
                 match_instruction_id: false, match_end_to_end_id: false,
                 match_transaction_id: false, match_message_id: false,
                 reference_value: '',
+                group_match_enabled: false, group_ls_type: null,
                 cross_id_search: false, id_prefix_match: false, id_prefix_length: null, is_active: true, priority: 100, description: ''
             },
             autoMatchRunning: false,
@@ -774,6 +775,7 @@ var MatchingMixin = {
                 match_instruction_id: false, match_end_to_end_id: false,
                 match_transaction_id: false, match_message_id: false,
                 reference_value: '',
+                group_match_enabled: false, group_ls_type: null,
                 cross_id_search: false, id_prefix_match: false, id_prefix_length: null, is_active: true, priority: 100, description: ''
             };
             this.openRuleModal();
@@ -799,6 +801,12 @@ var MatchingMixin = {
             if (this.editingRule.reference_value === undefined || this.editingRule.reference_value === null) {
                 this.editingRule.reference_value = '';
             }
+            if (this.editingRule.group_match_enabled === undefined) {
+                this.editingRule.group_match_enabled = false;
+            }
+            if (this.editingRule.group_ls_type === undefined) {
+                this.editingRule.group_ls_type = null;
+            }
             this.openRuleModal();
         },
         /**
@@ -822,6 +830,11 @@ var MatchingMixin = {
             if (!self.editingRule.name) {
                 Swal.fire({ icon: 'warning', title: 'Введите название', toast: true,
                     position: 'top-end', timer: 2000, showConfirmButton: false });
+                return;
+            }
+            if (self.editingRule.group_match_enabled && !self.editingRule.group_ls_type) {
+                Swal.fire({ icon: 'warning', title: 'Укажите тип бух.проводки для группы', toast: true,
+                    position: 'top-end', timer: 2500, showConfirmButton: false });
                 return;
             }
             // ИСПРАВЛЕНО: было window.window.AppRoutes

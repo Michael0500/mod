@@ -284,6 +284,11 @@ class MatchingController extends BaseController
                 'cross_id_search' => (bool) $rule->cross_id_search,
                 'id_prefix_match' => (bool) $rule->id_prefix_match,
                 'id_prefix_length' => $rule->id_prefix_length !== null ? (int) $rule->id_prefix_length : null,
+                'group_match_enabled' => (bool) $rule->group_match_enabled,
+                'group_ls_type' => $rule->group_ls_type,
+                'group_ls_type_label' => $rule->group_ls_type
+                    ? (MatchingRule::groupLsTypeList()[$rule->group_ls_type] ?? $rule->group_ls_type)
+                    : null,
                 'is_active' => (bool) $rule->is_active,
                 'priority' => (int) $rule->priority,
                 'description' => $rule->description,
@@ -327,6 +332,9 @@ class MatchingController extends BaseController
         $rule->id_prefix_match = $this->postBool('id_prefix_match');
         $prefixLength = Yii::$app->request->post('id_prefix_length');
         $rule->id_prefix_length = ($prefixLength === null || $prefixLength === '') ? null : (int) $prefixLength;
+        $rule->group_match_enabled = $this->postBool('group_match_enabled');
+        $groupLsType = Yii::$app->request->post('group_ls_type');
+        $rule->group_ls_type = ($groupLsType === null || $groupLsType === '') ? null : (string) $groupLsType;
         $rule->is_active = $this->postBool('is_active', true);
         $rule->priority = (int) Yii::$app->request->post('priority', 100);
         $rule->description = (string) Yii::$app->request->post('description', '');

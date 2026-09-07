@@ -61,6 +61,30 @@ $showBankSelect = $showBankSelect ?? false;
                     </div>
                 </div>
                 <div class="form-section mb-3">
+                    <div class="form-check form-switch" style="margin-bottom:10px">
+                        <input class="form-check-input" type="checkbox" v-model="editingRule.group_match_enabled" id="r_group_match">
+                        <label class="form-check-label" for="r_group_match" style="font-weight:600 !important">
+                            Групповое квитование
+                        </label>
+                    </div>
+                    <div class="row g-2" v-if="editingRule.group_match_enabled">
+                        <div class="col-md-6">
+                            <label class="form-label" for="r_group_ls_type">
+                                Тип бух.проводки (группа) <span style="color:#ef4444">*</span>
+                            </label>
+                            <select id="r_group_ls_type" class="form-select" v-model="editingRule.group_ls_type">
+                                <option :value="null">Выберите тип</option>
+                                <option value="LS">Ledger и Statement</option>
+                                <option value="L">Только Ledger</option>
+                                <option value="S">Только Statement</option>
+                            </select>
+                            <div style="font-size:11.5px;color:#9ca3af;margin-top:3px">
+                                Сумма выбранного типа по совпадающим референсам должна совпасть с суммой второй стороны из поля «Тип пары».
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-section mb-3">
                     <div class="form-section-title">
                         <i class="fas fa-check-double" style="color:#10b981"></i>Обязательные условия
                     </div>

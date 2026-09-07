@@ -25,6 +25,8 @@ use yii\db\ActiveRecord;
  * @property bool $cross_id_search
  * @property bool $id_prefix_match
  * @property int|null $id_prefix_length
+ * @property bool $group_match_enabled
+ * @property string|null $group_ls_type
  * @property bool $is_active
  * @property int $priority
  * @property string|null $description
@@ -42,6 +44,10 @@ class MatchingRule extends ActiveRecord
     public const PAIR_LS = 'LS';
     public const PAIR_LL = 'LL';
     public const PAIR_SS = 'SS';
+
+    public const GROUP_LS = 'LS';
+    public const GROUP_L = 'L';
+    public const GROUP_S = 'S';
 
     public static function tableName(): string
     {
@@ -69,6 +75,7 @@ class MatchingRule extends ActiveRecord
                 'match_message_id',
                 'cross_id_search',
                 'id_prefix_match',
+                'group_match_enabled',
                 'is_active',
             ], 'boolean'],
             [['reference_value'], 'trim'],
@@ -78,6 +85,9 @@ class MatchingRule extends ActiveRecord
             [['id_prefix_length'], 'default', 'value' => null],
             [['id_prefix_length'], 'integer', 'min' => 1, 'max' => 60],
             [['id_prefix_match', 'id_prefix_length'], 'validateIdPrefixSettings'],
+            [['group_ls_type'], 'default', 'value' => null],
+            [['group_ls_type'], 'in', 'range' => [self::GROUP_LS, self::GROUP_L, self::GROUP_S]],
+            [['group_match_enabled', 'group_ls_type'], 'validateGroupMatchSettings'],
             [['name'], 'string', 'max' => 100],
             [['description'], 'string'],
         ];
@@ -103,6 +113,8 @@ class MatchingRule extends ActiveRecord
             'cross_id_search' => 'Перекрёстный поиск ID',
             'id_prefix_match' => 'Сравнение идентификаторов по первым символам',
             'id_prefix_length' => 'Количество символов идентификатора',
+            'group_match_enabled' => 'Групповое квитование',
+            'group_ls_type' => 'Тип бух.проводки (группа)',
             'is_active' => 'Активно',
             'priority' => 'Приоритет',
             'description' => 'Описание',
@@ -116,6 +128,9 @@ class MatchingRule extends ActiveRecord
         }
 
         $this->normalizePoolIds();
+        if (is_string($this->group_ls_type)) {
+            $this->group_ls_type = trim($this->group_ls_type);
+        }
 
         if (empty($this->pool_ids) && $this->pool_id) {
             $this->pool_ids = [(int) $this->pool_id];
@@ -134,6 +149,9 @@ class MatchingRule extends ActiveRecord
         $this->pool_id = !empty($this->pool_ids) ? (int) $this->pool_ids[0] : null;
         if (!$this->id_prefix_match) {
             $this->id_prefix_length = null;
+        }
+        if (!$this->group_match_enabled) {
+            $this->group_ls_type = null;
         }
         $this->reference_value = $this->normalizeReferenceValue($this->reference_value);
         $this->updated_at = date('Y-m-d H:i:s');
@@ -155,6 +173,9 @@ class MatchingRule extends ActiveRecord
 
         if (empty($this->pool_ids) && $this->pool_id) {
             $this->pool_ids = [(int) $this->pool_id];
+        }
+        if (is_string($this->group_ls_type)) {
+            $this->group_ls_type = trim($this->group_ls_type);
         }
     }
 
@@ -178,6 +199,15 @@ class MatchingRule extends ActiveRecord
             self::PAIR_LS => 'Ledger ↔ Statement',
             self::PAIR_LL => 'Ledger ↔ Ledger',
             self::PAIR_SS => 'Statement ↔ Statement',
+        ];
+    }
+
+    public static function groupLsTypeList(): array
+    {
+        return [
+            self::GROUP_LS => 'Ledger и Statement',
+            self::GROUP_L => 'Только Ledger',
+            self::GROUP_S => 'Только Statement',
         ];
     }
 
@@ -229,6 +259,9 @@ class MatchingRule extends ActiveRecord
         }
         if ($this->cross_id_search) {
             $parts[] = 'Перекрёстный';
+        }
+        if ($this->group_match_enabled) {
+            $parts[] = 'Группа: ' . (self::groupLsTypeList()[$this->group_ls_type] ?? $this->group_ls_type);
         }
 
         return implode(', ', $parts) ?: '—';
@@ -326,6 +359,28 @@ class MatchingRule extends ActiveRecord
         }
     }
 
+    public function validateGroupMatchSettings(): void
+    {
+        if (!$this->group_match_enabled) {
+            $this->group_ls_type = null;
+            return;
+        }
+
+        if ($this->group_ls_type === null || $this->group_ls_type === '') {
+            $this->addError('group_ls_type', 'Укажите тип бух.проводки для группового квитования');
+        }
+
+        if (!$this->hasAnyMatchedIdField()) {
+            $this->addError('group_match_enabled', 'Групповое квитование доступно только при включённом хотя бы одном ID-поле');
+        }
+
+        $pairTypes = $this->pairTypesAsList($this->pair_type);
+        $groupTypes = $this->groupTypesAsList($this->group_ls_type);
+        if (!array_intersect($pairTypes, $groupTypes)) {
+            $this->addError('group_ls_type', 'Тип бух.проводки группы должен соответствовать типу пары');
+        }
+    }
+
     /**
      * @return string[]
      */
@@ -371,6 +426,33 @@ class MatchingRule extends ActiveRecord
     {
         $value = is_string($value) ? trim($value) : $value;
         return ($value === null || $value === '') ? null : (string) $value;
+    }
+
+    private function pairTypesAsList(?string $pairType): array
+    {
+        switch ($pairType) {
+            case self::PAIR_LL:
+                return [self::GROUP_L];
+            case self::PAIR_SS:
+                return [self::GROUP_S];
+            case self::PAIR_LS:
+            default:
+                return [self::GROUP_L, self::GROUP_S];
+        }
+    }
+
+    private function groupTypesAsList(?string $groupType): array
+    {
+        switch ($groupType) {
+            case self::GROUP_L:
+                return [self::GROUP_L];
+            case self::GROUP_S:
+                return [self::GROUP_S];
+            case self::GROUP_LS:
+                return [self::GROUP_L, self::GROUP_S];
+            default:
+                return [];
+        }
     }
 
     private function syncPoolAssignments(): void

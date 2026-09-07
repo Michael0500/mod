@@ -584,7 +584,10 @@ class MatchingService
         $rule   = MatchingRule::findOne($ruleId);
 
         // Правило исчезло или без условий JOIN — закрываем как 0 пар.
-        if (!$rule || empty($this->buildJoinConditions($rule))) {
+        if (!$rule
+            || (!$this->isGroupRule($rule) && empty($this->buildJoinConditions($rule)))
+            || ($this->isGroupRule($rule) && !$rule->hasAnyMatchedIdField())
+        ) {
             $state['step_results'][] = [
                 'rule_id' => $ruleId, 'rule_name' => $rule ? $rule->name : '?', 'matched' => 0, 'error' => null,
             ];
@@ -635,12 +638,21 @@ class MatchingService
             // ── Материализация пар текущего пула в automatch_pairs ──
             $state['display_phase'] = 'searching';
             $db->createCommand()->delete('{{%automatch_pairs}}', ['job_id' => $jobId])->execute();
-            $pairsSelect = $this->poolPairsSelect($rule, $companyId, $accList, $filterA);
-            $db->createCommand("
-                INSERT INTO {{%automatch_pairs}} (job_id, rn, id_a, id_b)
-                SELECT :job, row_number() OVER (ORDER BY id_a), id_a, id_b
-                FROM ({$pairsSelect}) p
-            ", [':job' => $jobId])->execute();
+            if ($this->isGroupRule($rule)) {
+                $pairsSelect = $this->groupMatchesSelect($rule, $companyId, $accList, $accountId);
+                $db->createCommand("
+                    INSERT INTO {{%automatch_pairs}} (job_id, rn, id_a, id_b, entry_ids)
+                    SELECT :job, row_number() OVER (ORDER BY id_a), id_a, id_b, entry_ids
+                    FROM ({$pairsSelect}) p
+                ", [':job' => $jobId])->execute();
+            } else {
+                $pairsSelect = $this->poolPairsSelect($rule, $companyId, $accList, $filterA);
+                $db->createCommand("
+                    INSERT INTO {{%automatch_pairs}} (job_id, rn, id_a, id_b)
+                    SELECT :job, row_number() OVER (ORDER BY id_a), id_a, id_b
+                    FROM ({$pairsSelect}) p
+                ", [':job' => $jobId])->execute();
+            }
 
             $cnt = (int) $db->createCommand(
                 'SELECT count(*) FROM {{%automatch_pairs}} WHERE job_id = :j', [':j' => $jobId]
@@ -669,29 +681,57 @@ class MatchingService
             ? (int) Yii::$app->user->id : null;
         $userIdSql = $userId !== null ? $userId : 'NULL';
 
-        $affected = $db->createCommand("
-            WITH chunk AS (
-                SELECT id_a, id_b,
-                       'MTCH' || lpad(nextval('match_id_seq')::text, 8, '0') AS mid
-                FROM {{%automatch_pairs}}
-                WHERE job_id = :job AND rn > {$lo} AND rn <= {$hi}
-            ),
-            to_update AS (
-                SELECT id_a AS eid, mid FROM chunk
-                UNION ALL
-                SELECT id_b AS eid, mid FROM chunk
-            )
-            UPDATE nostro_entries ne
-            SET match_id     = u.mid,
-                match_status = 'M',
-                matched_at   = '{$now}',
-                updated_at   = '{$now}',
-                updated_by   = {$userIdSql}
-            FROM to_update u
-            WHERE ne.id = u.eid
-        ", [':job' => $jobId])->execute();
+        if ($this->isGroupRule($rule)) {
+            $pairs = (int) $db->createCommand(
+                "SELECT count(*) FROM {{%automatch_pairs}} WHERE job_id = :job AND rn > {$lo} AND rn <= {$hi}",
+                [':job' => $jobId]
+            )->queryScalar();
 
-        $pairs = (int) ($affected / 2);
+            $db->createCommand("
+                WITH chunk AS (
+                    SELECT entry_ids,
+                           'MTCH' || lpad(nextval('match_id_seq')::text, 8, '0') AS mid
+                    FROM {{%automatch_pairs}}
+                    WHERE job_id = :job AND rn > {$lo} AND rn <= {$hi}
+                ),
+                to_update AS (
+                    SELECT unnest(entry_ids) AS eid, mid FROM chunk
+                )
+                UPDATE nostro_entries ne
+                SET match_id     = u.mid,
+                    match_status = 'M',
+                    matched_at   = '{$now}',
+                    updated_at   = '{$now}',
+                    updated_by   = {$userIdSql}
+                FROM to_update u
+                WHERE ne.id = u.eid
+            ", [':job' => $jobId])->execute();
+        } else {
+            $affected = $db->createCommand("
+                WITH chunk AS (
+                    SELECT id_a, id_b,
+                           'MTCH' || lpad(nextval('match_id_seq')::text, 8, '0') AS mid
+                    FROM {{%automatch_pairs}}
+                    WHERE job_id = :job AND rn > {$lo} AND rn <= {$hi}
+                ),
+                to_update AS (
+                    SELECT id_a AS eid, mid FROM chunk
+                    UNION ALL
+                    SELECT id_b AS eid, mid FROM chunk
+                )
+                UPDATE nostro_entries ne
+                SET match_id     = u.mid,
+                    match_status = 'M',
+                    matched_at   = '{$now}',
+                    updated_at   = '{$now}',
+                    updated_by   = {$userIdSql}
+                FROM to_update u
+                WHERE ne.id = u.eid
+            ", [':job' => $jobId])->execute();
+
+            $pairs = (int) ($affected / 2);
+        }
+
         $state['rule_matched']  += $pairs;
         $state['total_matched'] += $pairs;
         $state['pool_offset']    = $hi;
@@ -753,6 +793,25 @@ class MatchingService
         }
     }
 
+    private function isGroupRule(MatchingRule $rule): bool
+    {
+        return (bool) $rule->group_match_enabled && $rule->group_ls_type !== null && $rule->group_ls_type !== '';
+    }
+
+    private function groupSideEnabled(MatchingRule $rule, string $ls): bool
+    {
+        if ($rule->group_ls_type === MatchingRule::GROUP_LS) {
+            return true;
+        }
+
+        return $rule->group_ls_type === $ls;
+    }
+
+    private function groupRuleCanRun(MatchingRule $rule): bool
+    {
+        return $this->isGroupRule($rule) && $rule->hasAnyMatchedIdField();
+    }
+
     /**
      * Возвращает список ID пулов компании в области автоквитования.
      *
@@ -801,6 +860,165 @@ class MatchingService
             $ids = array_values(array_intersect($ids, array_map('intval', $limitAccountIds)));
         }
         return $ids;
+    }
+
+    private function groupMatchesSelect(MatchingRule $rule, int $companyId, string $accList, ?int $accountId): string
+    {
+        if (!$this->groupRuleCanRun($rule)) {
+            return 'SELECT NULL::integer AS id_a, NULL::integer AS id_b, ARRAY[]::integer[] AS entry_ids WHERE false';
+        }
+
+        [$typeA, $typeB] = $this->pairTypes($rule->pair_type);
+        $groupA = $this->groupSideEnabled($rule, $typeA);
+        $groupB = $this->groupSideEnabled($rule, $typeB);
+        $groupBothSides = $rule->group_ls_type === MatchingRule::GROUP_LS && $typeA !== $typeB;
+        if (!$groupA && !$groupB) {
+            return 'SELECT NULL::integer AS id_a, NULL::integer AS id_b, ARRAY[]::integer[] AS entry_ids WHERE false';
+        }
+
+        $filterA = $accountId ? "e.account_id = {$accountId}" : "e.account_id IN ({$accList})";
+        $filterB = "e.account_id IN ({$accList})";
+        $sideA = $this->groupSideSelect($rule, $companyId, $typeA, $filterA, $groupA, $groupBothSides ? 1 : 2);
+        $sideB = $this->groupSideSelect($rule, $companyId, $typeB, $filterB, $groupB, $groupBothSides ? 1 : 2);
+        $dcCondition = $rule->match_dc
+            ? "AND ((a.dc_key = 'Debit' AND b.dc_key = 'Credit') OR (a.dc_key = 'Credit' AND b.dc_key = 'Debit'))"
+            : '';
+        $dateCondition = $rule->match_value_date
+            ? 'AND a.value_date_key IS NOT DISTINCT FROM b.value_date_key'
+            : '';
+        $sameSideCondition = ($typeA === $typeB) ? 'AND a.first_id < b.first_id' : '';
+        $realGroupCondition = $groupBothSides ? 'AND (a.entries_count > 1 OR b.entries_count > 1)' : '';
+
+        return "
+            WITH a_side AS (
+                {$sideA}
+            ),
+            b_side AS (
+                {$sideB}
+            ),
+            raw AS (
+                SELECT
+                    a.first_id AS id_a,
+                    b.first_id AS id_b,
+                    merged.entry_ids
+                FROM a_side a
+                JOIN b_side b
+                  ON a.ref_field = b.ref_field
+                 AND a.ref_value = b.ref_value
+                 AND a.sum_amount = b.sum_amount
+                 {$dcCondition}
+                 {$dateCondition}
+                 {$sameSideCondition}
+                 {$realGroupCondition}
+                 AND NOT (a.entry_ids && b.entry_ids)
+                CROSS JOIN LATERAL (
+                    SELECT array_agg(DISTINCT eid ORDER BY eid) AS entry_ids
+                    FROM unnest(a.entry_ids || b.entry_ids) AS eid
+                ) merged
+                WHERE cardinality(merged.entry_ids) >= 2
+            ),
+            a_dedup AS (
+                SELECT DISTINCT ON (id_a) id_a, id_b, entry_ids
+                FROM raw
+                ORDER BY id_a, id_b
+            ),
+            b_dedup AS (
+                SELECT DISTINCT ON (id_b) id_a, id_b, entry_ids
+                FROM a_dedup
+                ORDER BY id_b, id_a
+            )
+            SELECT id_a, id_b, entry_ids FROM b_dedup
+        ";
+    }
+
+    private function groupSideSelect(MatchingRule $rule, int $companyId, string $ls, string $accountFilter, bool $grouped, int $minEntries = 2): string
+    {
+        $refsSql = $this->groupReferenceRowsSql($rule, $companyId, $ls, $accountFilter);
+        if ($grouped) {
+            return "
+                WITH refs AS (
+                    {$refsSql}
+                )
+                SELECT
+                    array_agg(id ORDER BY id)::integer[] AS entry_ids,
+                    min(id) AS first_id,
+                    sum(amount) AS sum_amount,
+                    count(*) AS entries_count,
+                    ref_field,
+                    ref_value,
+                    dc_key,
+                    value_date_key
+                FROM refs
+                GROUP BY ref_field, ref_value, dc_key, value_date_key
+                HAVING count(*) >= {$minEntries}
+            ";
+        }
+
+        return "
+            WITH refs AS (
+                {$refsSql}
+            )
+            SELECT
+                ARRAY[id]::integer[] AS entry_ids,
+                id AS first_id,
+                amount AS sum_amount,
+                1 AS entries_count,
+                ref_field,
+                ref_value,
+                dc_key,
+                value_date_key
+            FROM refs
+        ";
+    }
+
+    private function groupReferenceRowsSql(MatchingRule $rule, int $companyId, string $ls, string $accountFilter): string
+    {
+        $fields = $rule->getSelectedReferenceFields();
+        if (empty($fields)) {
+            return "SELECT NULL::integer AS id, NULL::numeric AS amount, NULL::text AS ref_field, NULL::text AS ref_value, NULL::text AS dc_key, NULL::date AS value_date_key WHERE false";
+        }
+
+        $branches = [];
+        $referenceValue = $rule->reference_value;
+        $quotedReferenceValue = ($referenceValue !== null && $referenceValue !== '')
+            ? Yii::$app->db->quoteValue($referenceValue)
+            : null;
+        $prefixLength = ($rule->id_prefix_match && $rule->id_prefix_length) ? (int) $rule->id_prefix_length : null;
+
+        foreach ($fields as $field) {
+            $refField = ($rule->cross_id_search || $quotedReferenceValue !== null)
+                ? Yii::$app->db->quoteValue('*')
+                : Yii::$app->db->quoteValue($field);
+            $refValueExpr = $quotedReferenceValue !== null
+                ? $quotedReferenceValue
+                : ($prefixLength ? "left(e.{$field}, {$prefixLength})" : "e.{$field}");
+            $fieldCondition = $quotedReferenceValue !== null
+                ? "e.{$field} = {$quotedReferenceValue}"
+                : "e.{$field} IS NOT NULL AND e.{$field} <> ''";
+            if ($prefixLength && $quotedReferenceValue === null) {
+                $fieldCondition .= " AND char_length(e.{$field}) >= {$prefixLength}";
+            }
+
+            $dcExpr = $rule->match_dc ? 'e.dc' : 'NULL';
+            $valueDateExpr = $rule->match_value_date ? 'e.value_date' : 'NULL';
+            $branches[] = "
+                SELECT
+                    e.id,
+                    e.amount,
+                    {$refField}::text AS ref_field,
+                    {$refValueExpr}::text AS ref_value,
+                    {$dcExpr}::text AS dc_key,
+                    {$valueDateExpr}::date AS value_date_key
+                FROM nostro_entries e
+                WHERE e.company_id = {$companyId}
+                  AND e.ls = '{$ls}'
+                  AND e.match_status = 'U'
+                  AND {$accountFilter}
+                  AND {$fieldCondition}
+            ";
+        }
+
+        return implode("\n                UNION\n", $branches);
     }
 
     /**
@@ -952,6 +1170,10 @@ class MatchingService
      */
     public function runRule(MatchingRule $rule, int $companyId, ?int $accountId, ?array $limitAccountIds = null): int
     {
+        if ($this->isGroupRule($rule)) {
+            return $this->runGroupRule($rule, $companyId, $accountId, $limitAccountIds);
+        }
+
         $db = Yii::$app->db;
 
         // Условия пары строятся внутри poolPairsSelect(); здесь только ранний
@@ -1080,6 +1302,92 @@ class MatchingService
 
                 $db->createCommand('DROP TABLE IF EXISTS _am_pairs')->execute();
             } while ($pairCount > 0);
+        }
+
+        return $total;
+    }
+
+    private function runGroupRule(MatchingRule $rule, int $companyId, ?int $accountId, ?array $limitAccountIds = null): int
+    {
+        if (!$this->groupRuleCanRun($rule)) {
+            return 0;
+        }
+
+        $db = Yii::$app->db;
+        $now = date('Y-m-d H:i:s');
+        $userId = (Yii::$app instanceof \yii\web\Application && !Yii::$app->user->isGuest)
+            ? (int) Yii::$app->user->id
+            : null;
+        $userIdSql = $userId !== null ? $userId : 'NULL';
+        $updateChunk = 10000;
+        $total = 0;
+
+        $poolIds = $this->resolvePoolIds($companyId, $accountId, $limitAccountIds, $rule->getEffectivePoolIds());
+        if (empty($poolIds)) {
+            return 0;
+        }
+
+        foreach ($poolIds as $poolId) {
+            $accountIds = $this->poolAccountIds($companyId, (int) $poolId, $limitAccountIds);
+            if (empty($accountIds)) {
+                continue;
+            }
+
+            $accList = implode(',', array_map('intval', $accountIds));
+            $matchesSelect = $this->groupMatchesSelect($rule, $companyId, $accList, $accountId);
+            $materializeSql = "
+                CREATE TEMP TABLE _am_groups AS
+                SELECT id_a, id_b, entry_ids, row_number() OVER (ORDER BY id_a) AS rn
+                FROM ({$matchesSelect}) p
+            ";
+
+            do {
+                $db->createCommand('DROP TABLE IF EXISTS _am_groups')->execute();
+                $db->createCommand($materializeSql)->execute();
+
+                $groupCount = (int) $db->createCommand('SELECT count(*) FROM _am_groups')->queryScalar();
+                if ($groupCount === 0) {
+                    $db->createCommand('DROP TABLE IF EXISTS _am_groups')->execute();
+                    break;
+                }
+                $db->createCommand('CREATE INDEX ON _am_groups (rn)')->execute();
+
+                for ($lo = 0; $lo < $groupCount; $lo += $updateChunk) {
+                    $hi = $lo + $updateChunk;
+                    $sql = "
+                        WITH chunk AS (
+                            SELECT entry_ids,
+                                   'MTCH' || lpad(nextval('match_id_seq')::text, 8, '0') AS mid
+                            FROM _am_groups
+                            WHERE rn > {$lo} AND rn <= {$hi}
+                        ),
+                        to_update AS (
+                            SELECT unnest(entry_ids) AS eid, mid FROM chunk
+                        )
+                        UPDATE nostro_entries ne
+                        SET match_id     = u.mid,
+                            match_status = 'M',
+                            matched_at   = '{$now}',
+                            updated_at   = '{$now}',
+                            updated_by   = {$userIdSql}
+                        FROM to_update u
+                        WHERE ne.id = u.eid
+                    ";
+
+                    $transaction = $db->beginTransaction();
+                    try {
+                        $db->createCommand($sql)->execute();
+                        $transaction->commit();
+                    } catch (\Exception $e) {
+                        $transaction->rollBack();
+                        $db->createCommand('DROP TABLE IF EXISTS _am_groups')->execute();
+                        throw $e;
+                    }
+                    $total += min($updateChunk, $groupCount - $lo);
+                }
+
+                $db->createCommand('DROP TABLE IF EXISTS _am_groups')->execute();
+            } while ($groupCount > 0);
         }
 
         return $total;

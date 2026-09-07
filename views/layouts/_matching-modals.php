@@ -46,6 +46,36 @@
                         <div class="form-text">Меньше = выше</div>
                     </div>
 
+                    <div class="col-12">
+                        <div class="card border-0 bg-light">
+                            <div class="card-body">
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input" type="checkbox"
+                                           v-model="editingRule.group_match_enabled" id="r_group_match">
+                                    <label class="form-check-label fw-semibold" for="r_group_match">
+                                        Групповое квитование
+                                    </label>
+                                </div>
+                                <div class="row g-2" v-if="editingRule.group_match_enabled">
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold" for="r_group_ls_type">
+                                            Тип бух.проводки (группа) <span class="text-danger">*</span>
+                                        </label>
+                                        <select id="r_group_ls_type" class="form-select" v-model="editingRule.group_ls_type">
+                                            <option :value="null">Выберите тип</option>
+                                            <option value="LS">Ledger и Statement</option>
+                                            <option value="L">Только Ledger</option>
+                                            <option value="S">Только Statement</option>
+                                        </select>
+                                        <div class="form-text">
+                                            Сумма выбранного типа по совпадающим референсам должна совпасть с суммой второй стороны из поля «Тип пары».
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Условия совпадения -->
                     <div class="col-12">
                         <div class="card border-0 bg-light">
