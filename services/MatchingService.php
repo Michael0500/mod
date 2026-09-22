@@ -27,7 +27,9 @@ class MatchingService
      * Сквитовать набор записей вручную.
      *
      * Для NRE (L+S):
-     *   - сумма Ledger = сумма Statement (если разница != 0 — предупреждение)
+     *   - L NET = SUM(L Debit) - SUM(L Credit)
+     *   - S NET = SUM(S Debit) - SUM(S Credit)
+     *   - L NET + S NET = 0 (иначе предупреждение)
      *   - минимум 2 записи
      *
      * Для INV (только Ledger):
@@ -125,33 +127,28 @@ class MatchingService
                 ];
             }
         } else {
-            // NRE (2+ записей): проверяем баланс по L/S
+            // NRE (2+ записей): считаем L NET и S NET как Debit - Credit,
+            // затем проверяем, что L NET + S NET равно нулю.
             $sumLedger    = 0.0;
             $sumStatement = 0.0;
-            $hasLedger    = false;
-            $hasStatement = false;
 
             foreach ($entries as $e) {
                 $signed = ($e->dc === NostroEntry::DC_DEBIT) ? $e->amount : -$e->amount;
                 if ($e->ls === NostroEntry::LS_LEDGER) {
                     $sumLedger += $signed;
-                    $hasLedger  = true;
                 } else {
                     $sumStatement += $signed;
-                    $hasStatement = true;
                 }
             }
 
-            if ($hasLedger && $hasStatement) {
-                $diff = round(abs($sumLedger + $sumStatement), 2);
-                if ($diff > 0) {
-                    return [
-                        'success' => false,
-                        'warning' => true,
-                        'diff'    => $diff,
-                        'message' => 'Суммы не сбалансированы. Разница: ' . number_format($diff, 2, '.', ',')
-                    ];
-                }
+            $diff = round($sumLedger + $sumStatement, 2);
+            if ($diff != 0.0) {
+                return [
+                    'success' => false,
+                    'warning' => true,
+                    'diff'    => $diff,
+                    'message' => 'Суммы не сбалансированы. Разница: ' . number_format($diff, 2, '.', ',')
+                ];
             }
         }
 
@@ -871,6 +868,9 @@ class MatchingService
         [$typeA, $typeB] = $this->pairTypes($rule->pair_type);
         $groupA = $this->groupSideEnabled($rule, $typeA);
         $groupB = $this->groupSideEnabled($rule, $typeB);
+        if ($typeA === $typeB) {
+            return $this->sameSideGroupMatchesSelect($rule, $companyId, $typeA, $accList, $accountId);
+        }
         $groupBothSides = $rule->group_ls_type === MatchingRule::GROUP_LS && $typeA !== $typeB;
         if (!$groupA && !$groupB) {
             return 'SELECT NULL::integer AS id_a, NULL::integer AS id_b, ARRAY[]::integer[] AS entry_ids WHERE false';
@@ -880,13 +880,9 @@ class MatchingService
         $filterB = "e.account_id IN ({$accList})";
         $sideA = $this->groupSideSelect($rule, $companyId, $typeA, $filterA, $groupA, $groupBothSides ? 1 : 2);
         $sideB = $this->groupSideSelect($rule, $companyId, $typeB, $filterB, $groupB, $groupBothSides ? 1 : 2);
-        $dcCondition = $rule->match_dc
-            ? "AND ((a.dc_key = 'Debit' AND b.dc_key = 'Credit') OR (a.dc_key = 'Credit' AND b.dc_key = 'Debit'))"
-            : '';
         $dateCondition = $rule->match_value_date
             ? 'AND a.value_date_key IS NOT DISTINCT FROM b.value_date_key'
             : '';
-        $sameSideCondition = ($typeA === $typeB) ? 'AND a.first_id < b.first_id' : '';
         $realGroupCondition = $groupBothSides ? 'AND (a.entries_count > 1 OR b.entries_count > 1)' : '';
 
         return "
@@ -905,10 +901,8 @@ class MatchingService
                 JOIN b_side b
                   ON a.ref_field = b.ref_field
                  AND a.ref_value = b.ref_value
-                 AND a.sum_amount = b.sum_amount
-                 {$dcCondition}
+                 AND a.net_amount + b.net_amount = 0
                  {$dateCondition}
-                 {$sameSideCondition}
                  {$realGroupCondition}
                  AND NOT (a.entry_ids && b.entry_ids)
                 CROSS JOIN LATERAL (
@@ -942,14 +936,13 @@ class MatchingService
                 SELECT
                     array_agg(id ORDER BY id)::integer[] AS entry_ids,
                     min(id) AS first_id,
-                    sum(amount) AS sum_amount,
+                    sum(signed_amount) AS net_amount,
                     count(*) AS entries_count,
                     ref_field,
                     ref_value,
-                    dc_key,
                     value_date_key
                 FROM refs
-                GROUP BY ref_field, ref_value, dc_key, value_date_key
+                GROUP BY ref_field, ref_value, value_date_key
                 HAVING count(*) >= {$minEntries}
             ";
         }
@@ -961,13 +954,44 @@ class MatchingService
             SELECT
                 ARRAY[id]::integer[] AS entry_ids,
                 id AS first_id,
-                amount AS sum_amount,
+                signed_amount AS net_amount,
                 1 AS entries_count,
                 ref_field,
                 ref_value,
-                dc_key,
                 value_date_key
             FROM refs
+        ";
+    }
+
+    /**
+     * Строит сбалансированные группы для правил LL/SS.
+     * NET группы рассчитывается как сумма Debit минус сумма Credit.
+     */
+    private function sameSideGroupMatchesSelect(
+        MatchingRule $rule,
+        int $companyId,
+        string $ls,
+        string $accList,
+        ?int $accountId
+    ): string {
+        $accountFilter = $accountId ? "e.account_id = {$accountId}" : "e.account_id IN ({$accList})";
+        $refsSql = $this->groupReferenceRowsSql($rule, $companyId, $ls, $accountFilter);
+
+        return "
+            WITH refs AS (
+                {$refsSql}
+            ),
+            grouped AS (
+                SELECT
+                    min(id) AS id_a,
+                    max(id) AS id_b,
+                    array_agg(id ORDER BY id)::integer[] AS entry_ids
+                FROM refs
+                GROUP BY ref_field, ref_value, value_date_key
+                HAVING count(*) >= 2
+                   AND sum(signed_amount) = 0
+            )
+            SELECT id_a, id_b, entry_ids FROM grouped
         ";
     }
 
@@ -975,7 +999,7 @@ class MatchingService
     {
         $fields = $rule->getSelectedReferenceFields();
         if (empty($fields)) {
-            return "SELECT NULL::integer AS id, NULL::numeric AS amount, NULL::text AS ref_field, NULL::text AS ref_value, NULL::text AS dc_key, NULL::date AS value_date_key WHERE false";
+            return "SELECT NULL::integer AS id, NULL::numeric AS signed_amount, NULL::text AS ref_field, NULL::text AS ref_value, NULL::date AS value_date_key WHERE false";
         }
 
         $branches = [];
@@ -999,15 +1023,13 @@ class MatchingService
                 $fieldCondition .= " AND char_length(e.{$field}) >= {$prefixLength}";
             }
 
-            $dcExpr = $rule->match_dc ? 'e.dc' : 'NULL';
             $valueDateExpr = $rule->match_value_date ? 'e.value_date' : 'NULL';
             $branches[] = "
                 SELECT
                     e.id,
-                    e.amount,
+                    CASE WHEN e.dc = 'Debit' THEN e.amount ELSE -e.amount END AS signed_amount,
                     {$refField}::text AS ref_field,
                     {$refValueExpr}::text AS ref_value,
-                    {$dcExpr}::text AS dc_key,
                     {$valueDateExpr}::date AS value_date_key
                 FROM nostro_entries e
                 WHERE e.company_id = {$companyId}
@@ -1634,11 +1656,11 @@ GROUP BY ls;";
      * Считает предварительную сводку по выбранным записям.
      *
      * Используется UI перед ручным квитованием, чтобы показать пользователю
-     * суммы Ledger/Statement и разницу в выбранном наборе.
+     * NET-суммы Ledger/Statement и их итог в выбранном наборе.
      *
      * @param int[] $ids ID записей для расчёта.
      * @param int|null $companyId ID компании для tenant-ограничения.
-     * @return array Суммы и количества по L/S: `sum_ledger`, `sum_statement`, `diff`, `cnt_*`.
+     * @return array NET-суммы и количества по L/S: `sum_ledger`, `sum_statement`, `diff`, `cnt_*`.
      */
     public function calcSummary(array $ids, ?int $companyId = null): array
     {
@@ -1654,19 +1676,25 @@ GROUP BY ls;";
         $cntS = 0;
 
         foreach ($entries as $e) {
+            $signedAmount = ($e->dc === NostroEntry::DC_DEBIT)
+                ? (float) $e->amount
+                : -(float) $e->amount;
             if ($e->ls === NostroEntry::LS_LEDGER) {
-                $sumL += $e->amount;
+                $sumL += $signedAmount;
                 $cntL++;
             } else {
-                $sumS += $e->amount;
+                $sumS += $signedAmount;
                 $cntS++;
             }
         }
 
+        $sumL = round($sumL, 2);
+        $sumS = round($sumS, 2);
+
         return [
             'sum_ledger'    => $sumL,
             'sum_statement' => $sumS,
-            'diff'          => round($sumL - $sumS, 2),
+            'diff'          => round($sumL + $sumS, 2),
             'cnt_ledger'    => $cntL,
             'cnt_statement' => $cntS,
         ];

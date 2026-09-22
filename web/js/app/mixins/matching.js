@@ -99,9 +99,8 @@ var MatchingMixin = {
          */
         summaryDiff: function () {
             if (!this.selectionSummary) return null;
-            // В INV всегда сравниваем Debit-Credit. В NRE — если все выбранные
-            // записи на одном счёте, тоже сравниваем по D/C; иначе по L/S.
-            if (this.userSection === 'INV' || this.selectionSummary.same_account) {
+            // В INV сравниваем Debit-Credit. В NRE итог всегда равен L NET + S NET.
+            if (this.userSection === 'INV') {
                 return this.selectionSummary.diff_dc;
             }
             return this.selectionSummary.diff;
@@ -206,20 +205,29 @@ var MatchingMixin = {
         updateSummary: function () {
             var self = this;
             if (!self.selectedIds.length) { self.selectionSummary = null; return; }
-            var sL = 0, sS = 0, cL = 0, cS = 0;
+            var lDebit = 0, lCredit = 0, sDebit = 0, sCredit = 0;
+            var cL = 0, cS = 0;
             var sD = 0, sCr = 0, cD = 0, cCr = 0;
             var accountIds = {};
             (self.entries || []).forEach(function (e) {
                 if (self.selectedIds.indexOf(e.id) === -1) return;
                 var a = parseFloat(e.amount || 0);
-                if (e.ls === 'L') { sL += a; cL++; } else { sS += a; cS++; }
+                if (e.ls === 'L') {
+                    if (e.dc === 'Debit') lDebit += a; else lCredit += a;
+                    cL++;
+                } else {
+                    if (e.dc === 'Debit') sDebit += a; else sCredit += a;
+                    cS++;
+                }
                 if (e.dc === 'Debit') { sD += a; cD++; } else { sCr += a; cCr++; }
                 accountIds[e.account_id] = true;
             });
+            var netL = Math.round((lDebit - lCredit) * 100) / 100;
+            var netS = Math.round((sDebit - sCredit) * 100) / 100;
             self.selectionSummary = {
-                sum_ledger:    Math.round(sL * 100) / 100,
-                sum_statement: Math.round(sS * 100) / 100,
-                diff:          Math.round((sL - sS) * 100) / 100,
+                sum_ledger:    netL,
+                sum_statement: netS,
+                diff:          Math.round((netL + netS) * 100) / 100,
                 cnt_ledger:    cL,
                 cnt_statement: cS,
                 sum_debit:     Math.round(sD * 100) / 100,
