@@ -37,6 +37,9 @@ $initJson = json_encode($initData, JSON_UNESCAPED_UNICODE);
                     style="border-color:#ef4444;color:#ef4444">
                 <i class="fas fa-times"></i>Сбросить фильтры
             </button>
+            <button class="toolbar-btn outline" @click="resetSorting" title="Вернуть сортировку по умолчанию">
+                <i class="fas fa-sort-amount-down-alt"></i>Сбросить сортировку
+            </button>
             <button class="toolbar-btn outline" @click="showAddEntryModal()">
                 <i class="fas fa-plus"></i>Добавить запись
             </button>
@@ -128,18 +131,18 @@ $initJson = json_encode($initData, JSON_UNESCAPED_UNICODE);
             <strong>{{ selectedIds.length }}</strong> выбрано
         </span>
         <template v-if="userSection !== 'INV'">
-            <span class="summary-sep">|</span>
-            <span class="summary-item">
-                <span class="mono" style="color:#6366f1">L:</span>
-                <strong class="mono">{{ formatAmount(selectionSummary.sum_ledger) }}</strong>
-                <span style="font-size:10px;color:#9ca3af">({{ selectionSummary.cnt_ledger }})</span>
-            </span>
-            <span class="summary-sep">|</span>
-            <span class="summary-item">
-                <span class="mono" style="color:#0284c7">S:</span>
-                <strong class="mono">{{ formatAmount(selectionSummary.sum_statement) }}</strong>
-                <span style="font-size:10px;color:#9ca3af">({{ selectionSummary.cnt_statement }})</span>
-            </span>
+                <span class="summary-sep">|</span>
+                <span class="summary-item">
+                    <span class="mono" style="color:#6366f1">L:</span>
+                    <strong class="mono">{{ formatAmount(selectionSummary.sum_ledger) }}</strong>
+                    <span style="font-size:10px;color:#9ca3af">({{ selectionSummary.cnt_ledger }})</span>
+                </span>
+                <span class="summary-sep">|</span>
+                <span class="summary-item">
+                    <span class="mono" style="color:#0284c7">S:</span>
+                    <strong class="mono">{{ formatAmount(selectionSummary.sum_statement) }}</strong>
+                    <span style="font-size:10px;color:#9ca3af">({{ selectionSummary.cnt_statement }})</span>
+                </span>
         </template>
         <template v-else>
             <span class="summary-sep">|</span>
@@ -189,77 +192,77 @@ $initJson = json_encode($initData, JSON_UNESCAPED_UNICODE);
                         </th>
                         <th v-show="tblColVisible('id')" class="th-sort th-resizable" @click="sortBy('id')"
                             :style="{width: colByKey('id').width+'px', minWidth: colByKey('id').width+'px'}">
-                            <span>ID</span> <i :class="sortIcon('id')"></i>
+                            <span>ID</span> <i :class="sortIcon('id')"></i><span v-if="sortPriority('id')" class="sort-priority">{{ sortPriority('id') }}</span>
                             <div class="col-resize-handle" @mousedown.stop.prevent="startColResize($event, colByKey('id'))" @click.stop></div>
                         </th>
                         <th v-show="tblColVisible('account_id')" class="th-sort th-resizable" @click="sortBy('account_id')"
                             :style="{width: colByKey('account_id').width+'px', minWidth: colByKey('account_id').width+'px'}">
-                            <span>Банк / Счёт</span> <i :class="sortIcon('account_id')"></i>
+                            <span>Банк / Счёт</span> <i :class="sortIcon('account_id')"></i><span v-if="sortPriority('account_id')" class="sort-priority">{{ sortPriority('account_id') }}</span>
                             <div class="col-resize-handle" @mousedown.stop.prevent="startColResize($event, colByKey('account_id'))" @click.stop></div>
                         </th>
                         <th v-show="tblColVisible('match_id')" class="th-sort th-resizable" @click="sortBy('match_id')"
                             :style="{width: colByKey('match_id').width+'px', minWidth: colByKey('match_id').width+'px'}">
-                            <span>Match ID</span> <i :class="sortIcon('match_id')"></i>
+                            <span>Match ID</span> <i :class="sortIcon('match_id')"></i><span v-if="sortPriority('match_id')" class="sort-priority">{{ sortPriority('match_id') }}</span>
                             <div class="col-resize-handle" @mousedown.stop.prevent="startColResize($event, colByKey('match_id'))" @click.stop></div>
                         </th>
                         <th v-show="tblColVisible('ls')" class="th-sort th-resizable" @click="sortBy('ls')"
                             :style="{width: colByKey('ls').width+'px', minWidth: colByKey('ls').width+'px'}">
-                            <span>L/S</span> <i :class="sortIcon('ls')"></i>
+                            <span>L/S</span> <i :class="sortIcon('ls')"></i><span v-if="sortPriority('ls')" class="sort-priority">{{ sortPriority('ls') }}</span>
                             <div class="col-resize-handle" @mousedown.stop.prevent="startColResize($event, colByKey('ls'))" @click.stop></div>
                         </th>
                         <th v-show="tblColVisible('dc')" class="th-sort th-resizable" @click="sortBy('dc')"
                             :style="{width: colByKey('dc').width+'px', minWidth: colByKey('dc').width+'px'}">
-                            <span>D/C</span> <i :class="sortIcon('dc')"></i>
+                            <span>D/C</span> <i :class="sortIcon('dc')"></i><span v-if="sortPriority('dc')" class="sort-priority">{{ sortPriority('dc') }}</span>
                             <div class="col-resize-handle" @mousedown.stop.prevent="startColResize($event, colByKey('dc'))" @click.stop></div>
                         </th>
                         <th v-show="tblColVisible('amount')" class="th-sort th-resizable" @click="sortBy('amount')"
                             :style="{width: colByKey('amount').width+'px', minWidth: colByKey('amount').width+'px', textAlign:'right'}">
-                            <span>Сумма</span> <i :class="sortIcon('amount')"></i>
+                            <span>Сумма</span> <i :class="sortIcon('amount')"></i><span v-if="sortPriority('amount')" class="sort-priority">{{ sortPriority('amount') }}</span>
                             <div class="col-resize-handle" @mousedown.stop.prevent="startColResize($event, colByKey('amount'))" @click.stop></div>
                         </th>
                         <th v-show="tblColVisible('currency')" class="th-sort th-resizable" @click="sortBy('currency')"
                             :style="{width: colByKey('currency').width+'px', minWidth: colByKey('currency').width+'px'}">
-                            <span>Вал.</span> <i :class="sortIcon('currency')"></i>
+                            <span>Вал.</span> <i :class="sortIcon('currency')"></i><span v-if="sortPriority('currency')" class="sort-priority">{{ sortPriority('currency') }}</span>
                             <div class="col-resize-handle" @mousedown.stop.prevent="startColResize($event, colByKey('currency'))" @click.stop></div>
                         </th>
                         <th v-show="tblColVisible('value_date')" class="th-sort th-resizable" @click="sortBy('value_date')"
                             :style="{width: colByKey('value_date').width+'px', minWidth: colByKey('value_date').width+'px'}">
-                            <span>Value Date</span> <i :class="sortIcon('value_date')"></i>
+                            <span>Value Date</span> <i :class="sortIcon('value_date')"></i><span v-if="sortPriority('value_date')" class="sort-priority">{{ sortPriority('value_date') }}</span>
                             <div class="col-resize-handle" @mousedown.stop.prevent="startColResize($event, colByKey('value_date'))" @click.stop></div>
                         </th>
                         <th v-show="tblColVisible('post_date')" class="th-sort th-resizable" @click="sortBy('post_date')"
                             :style="{width: colByKey('post_date').width+'px', minWidth: colByKey('post_date').width+'px'}">
-                            <span>Post Date</span> <i :class="sortIcon('post_date')"></i>
+                            <span>Post Date</span> <i :class="sortIcon('post_date')"></i><span v-if="sortPriority('post_date')" class="sort-priority">{{ sortPriority('post_date') }}</span>
                             <div class="col-resize-handle" @mousedown.stop.prevent="startColResize($event, colByKey('post_date'))" @click.stop></div>
                         </th>
                         <th v-show="tblColVisible('instruction_id')" class="th-sort th-resizable" @click="sortBy('instruction_id')"
                             :style="{width: colByKey('instruction_id').width+'px', minWidth: colByKey('instruction_id').width+'px'}">
-                            <span>Instr.ID</span> <i :class="sortIcon('instruction_id')"></i>
+                            <span>Instr.ID</span> <i :class="sortIcon('instruction_id')"></i><span v-if="sortPriority('instruction_id')" class="sort-priority">{{ sortPriority('instruction_id') }}</span>
                             <div class="col-resize-handle" @mousedown.stop.prevent="startColResize($event, colByKey('instruction_id'))" @click.stop></div>
                         </th>
                         <th v-show="tblColVisible('end_to_end_id')" class="th-sort th-resizable" @click="sortBy('end_to_end_id')"
                             :style="{width: colByKey('end_to_end_id').width+'px', minWidth: colByKey('end_to_end_id').width+'px'}">
-                            <span>E2E ID</span> <i :class="sortIcon('end_to_end_id')"></i>
+                            <span>E2E ID</span> <i :class="sortIcon('end_to_end_id')"></i><span v-if="sortPriority('end_to_end_id')" class="sort-priority">{{ sortPriority('end_to_end_id') }}</span>
                             <div class="col-resize-handle" @mousedown.stop.prevent="startColResize($event, colByKey('end_to_end_id'))" @click.stop></div>
                         </th>
                         <th v-show="tblColVisible('transaction_id')" class="th-sort th-resizable" @click="sortBy('transaction_id')"
                             :style="{width: colByKey('transaction_id').width+'px', minWidth: colByKey('transaction_id').width+'px'}">
-                            <span>Txn ID</span> <i :class="sortIcon('transaction_id')"></i>
+                            <span>Txn ID</span> <i :class="sortIcon('transaction_id')"></i><span v-if="sortPriority('transaction_id')" class="sort-priority">{{ sortPriority('transaction_id') }}</span>
                             <div class="col-resize-handle" @mousedown.stop.prevent="startColResize($event, colByKey('transaction_id'))" @click.stop></div>
                         </th>
                         <th v-show="tblColVisible('message_id')" class="th-sort th-resizable" @click="sortBy('message_id')"
                             :style="{width: colByKey('message_id').width+'px', minWidth: colByKey('message_id').width+'px'}">
-                            <span>Msg ID</span> <i :class="sortIcon('message_id')"></i>
+                            <span>Msg ID</span> <i :class="sortIcon('message_id')"></i><span v-if="sortPriority('message_id')" class="sort-priority">{{ sortPriority('message_id') }}</span>
                             <div class="col-resize-handle" @mousedown.stop.prevent="startColResize($event, colByKey('message_id'))" @click.stop></div>
                         </th>
                         <th v-show="tblColVisible('comment')" class="th-sort th-resizable" @click="sortBy('comment')"
                             :style="{width: colByKey('comment').width+'px', minWidth: colByKey('comment').width+'px'}">
-                            <span>Комментарий</span> <i :class="sortIcon('comment')"></i>
+                            <span>Комментарий</span> <i :class="sortIcon('comment')"></i><span v-if="sortPriority('comment')" class="sort-priority">{{ sortPriority('comment') }}</span>
                             <div class="col-resize-handle" @mousedown.stop.prevent="startColResize($event, colByKey('comment'))" @click.stop></div>
                         </th>
                         <th v-show="tblColVisible('match_status')" class="th-sort th-resizable" @click="sortBy('match_status')"
                             :style="{width: colByKey('match_status').width+'px', minWidth: colByKey('match_status').width+'px'}">
-                            <span>Статус</span> <i :class="sortIcon('match_status')"></i>
+                            <span>Статус</span> <i :class="sortIcon('match_status')"></i><span v-if="sortPriority('match_status')" class="sort-priority">{{ sortPriority('match_status') }}</span>
                             <div class="col-resize-handle" @mousedown.stop.prevent="startColResize($event, colByKey('match_status'))" @click.stop></div>
                         </th>
                         <th style="width:90px;min-width:90px;text-align:right;padding-right:14px">
