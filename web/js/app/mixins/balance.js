@@ -383,11 +383,10 @@ var BalanceMixin = {
          * @returns {void}
          */
         sortBalance: function (col) {
-            var index = this.balanceSorts.findIndex(function (item) { return item.field === col; });
-            if (index !== -1) {
-                this.balanceSorts[index].dir = this.balanceSorts[index].dir === 'asc' ? 'desc' : 'asc';
+            if (this.balanceSorts.length === 1 && this.balanceSorts[0].field === col) {
+                this.balanceSorts[0].dir = this.balanceSorts[0].dir === 'asc' ? 'desc' : 'asc';
             } else {
-                this.balanceSorts.push({ field: col, dir: 'asc' });
+                this.balanceSorts = [{ field: col, dir: 'asc' }];
             }
             this.loadBalances(true);
         },
@@ -415,17 +414,6 @@ var BalanceMixin = {
             var item = this.balanceSorts.find(function (sort) { return sort.field === col; });
             if (!item) return 'fas fa-sort';
             return item.dir === 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down';
-        },
-
-        /**
-         * Возвращает приоритет сортировки колонки баланса.
-         *
-         * @param {string} col Ключ колонки.
-         * @returns {number|null} Приоритет или `null`.
-         */
-        balanceSortPriority: function (col) {
-            var index = this.balanceSorts.findIndex(function (item) { return item.field === col; });
-            return index === -1 ? null : index + 1;
         },
 
         /**

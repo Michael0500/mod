@@ -194,72 +194,72 @@ $currencySelectId = $currencySelectId ?? 'balance-filter-currency-select2';
                     <tr>
                         <th v-show="balanceColVisible('id')" class="th-sort th-resizable" @click="sortBalance('id')"
                             :style="{width: balanceColByKey('id').width+'px', minWidth: balanceColByKey('id').width+'px'}">
-                            <span>ID</span> <i :class="balanceSortIcon('id')"></i><span v-if="balanceSortPriority('id')" class="sort-priority">{{ balanceSortPriority('id') }}</span>
+                            <span>ID</span> <i :class="balanceSortIcon('id')"></i>
                             <div class="col-resize-handle" @mousedown.stop.prevent="startBalanceColResize($event, balanceColByKey('id'))" @click.stop></div>
                         </th>
                         <th v-show="balanceColVisible('ls_type')" class="th-sort th-resizable" @click="sortBalance('ls_type')"
                             :style="{width: balanceColByKey('ls_type').width+'px', minWidth: balanceColByKey('ls_type').width+'px'}">
-                            <span>L/S</span> <i :class="balanceSortIcon('ls_type')"></i><span v-if="balanceSortPriority('ls_type')" class="sort-priority">{{ balanceSortPriority('ls_type') }}</span>
+                            <span>L/S</span> <i :class="balanceSortIcon('ls_type')"></i>
                             <div class="col-resize-handle" @mousedown.stop.prevent="startBalanceColResize($event, balanceColByKey('ls_type'))" @click.stop></div>
                         </th>
                         <th v-show="balanceColVisible('section')" class="th-sort th-resizable" @click="sortBalance('section')"
                             :style="{width: balanceColByKey('section').width+'px', minWidth: balanceColByKey('section').width+'px'}">
-                            <span>Раздел</span> <i :class="balanceSortIcon('section')"></i><span v-if="balanceSortPriority('section')" class="sort-priority">{{ balanceSortPriority('section') }}</span>
+                            <span>Раздел</span> <i :class="balanceSortIcon('section')"></i>
                             <div class="col-resize-handle" @mousedown.stop.prevent="startBalanceColResize($event, balanceColByKey('section'))" @click.stop></div>
                         </th>
                         <th v-show="balanceColVisible('account_id')" class="th-sort th-resizable" @click="sortBalance('account_id')"
                             :style="{width: balanceColByKey('account_id').width+'px', minWidth: balanceColByKey('account_id').width+'px'}">
-                            <span>Счёт</span> <i :class="balanceSortIcon('account_id')"></i><span v-if="balanceSortPriority('account_id')" class="sort-priority">{{ balanceSortPriority('account_id') }}</span>
+                            <span>Счёт</span> <i :class="balanceSortIcon('account_id')"></i>
                             <div class="col-resize-handle" @mousedown.stop.prevent="startBalanceColResize($event, balanceColByKey('account_id'))" @click.stop></div>
                         </th>
                         <th v-show="balanceColVisible('currency')" class="th-sort th-resizable" @click="sortBalance('currency')"
                             :style="{width: balanceColByKey('currency').width+'px', minWidth: balanceColByKey('currency').width+'px'}">
-                            <span>Валюта</span> <i :class="balanceSortIcon('currency')"></i><span v-if="balanceSortPriority('currency')" class="sort-priority">{{ balanceSortPriority('currency') }}</span>
+                            <span>Валюта</span> <i :class="balanceSortIcon('currency')"></i>
                             <div class="col-resize-handle" @mousedown.stop.prevent="startBalanceColResize($event, balanceColByKey('currency'))" @click.stop></div>
                         </th>
                         <th v-show="balanceColVisible('value_date')" class="th-sort th-resizable" @click="sortBalance('value_date')"
                             :style="{width: balanceColByKey('value_date').width+'px', minWidth: balanceColByKey('value_date').width+'px'}">
-                            <span>Дата вал.</span> <i :class="balanceSortIcon('value_date')"></i><span v-if="balanceSortPriority('value_date')" class="sort-priority">{{ balanceSortPriority('value_date') }}</span>
+                            <span>Дата вал.</span> <i :class="balanceSortIcon('value_date')"></i>
                             <div class="col-resize-handle" @mousedown.stop.prevent="startBalanceColResize($event, balanceColByKey('value_date'))" @click.stop></div>
                         </th>
                         <th v-show="balanceColVisible('statement_number')" class="th-sort th-resizable" @click="sortBalance('statement_number')"
                             :style="{width: balanceColByKey('statement_number').width+'px', minWidth: balanceColByKey('statement_number').width+'px'}">
-                            <span>№ выписки</span> <i :class="balanceSortIcon('statement_number')"></i><span v-if="balanceSortPriority('statement_number')" class="sort-priority">{{ balanceSortPriority('statement_number') }}</span>
+                            <span>№ выписки</span> <i :class="balanceSortIcon('statement_number')"></i>
                             <div class="col-resize-handle" @mousedown.stop.prevent="startBalanceColResize($event, balanceColByKey('statement_number'))" @click.stop></div>
                         </th>
                         <th v-show="balanceColVisible('opening_balance')" class="th-sort th-resizable" @click="sortBalance('opening_balance')"
                             :style="{width: balanceColByKey('opening_balance').width+'px', minWidth: balanceColByKey('opening_balance').width+'px', textAlign:'right'}">
-                            <span>Opening</span> <i :class="balanceSortIcon('opening_balance')"></i><span v-if="balanceSortPriority('opening_balance')" class="sort-priority">{{ balanceSortPriority('opening_balance') }}</span>
+                            <span>Opening</span> <i :class="balanceSortIcon('opening_balance')"></i>
                             <div class="col-resize-handle" @mousedown.stop.prevent="startBalanceColResize($event, balanceColByKey('opening_balance'))" @click.stop></div>
                         </th>
                         <th v-show="balanceColVisible('opening_dc')" class="th-sort th-resizable" @click="sortBalance('opening_dc')"
                             :style="{width: balanceColByKey('opening_dc').width+'px', minWidth: balanceColByKey('opening_dc').width+'px', textAlign:'center'}">
-                            <span>D/C</span> <i :class="balanceSortIcon('opening_dc')"></i><span v-if="balanceSortPriority('opening_dc')" class="sort-priority">{{ balanceSortPriority('opening_dc') }}</span>
+                            <span>D/C</span> <i :class="balanceSortIcon('opening_dc')"></i>
                             <div class="col-resize-handle" @mousedown.stop.prevent="startBalanceColResize($event, balanceColByKey('opening_dc'))" @click.stop></div>
                         </th>
                         <th v-show="balanceColVisible('closing_balance')" class="th-sort th-resizable" @click="sortBalance('closing_balance')"
                             :style="{width: balanceColByKey('closing_balance').width+'px', minWidth: balanceColByKey('closing_balance').width+'px', textAlign:'right'}">
-                            <span>Closing</span> <i :class="balanceSortIcon('closing_balance')"></i><span v-if="balanceSortPriority('closing_balance')" class="sort-priority">{{ balanceSortPriority('closing_balance') }}</span>
+                            <span>Closing</span> <i :class="balanceSortIcon('closing_balance')"></i>
                             <div class="col-resize-handle" @mousedown.stop.prevent="startBalanceColResize($event, balanceColByKey('closing_balance'))" @click.stop></div>
                         </th>
                         <th v-show="balanceColVisible('closing_dc')" class="th-sort th-resizable" @click="sortBalance('closing_dc')"
                             :style="{width: balanceColByKey('closing_dc').width+'px', minWidth: balanceColByKey('closing_dc').width+'px', textAlign:'center'}">
-                            <span>D/C</span> <i :class="balanceSortIcon('closing_dc')"></i><span v-if="balanceSortPriority('closing_dc')" class="sort-priority">{{ balanceSortPriority('closing_dc') }}</span>
+                            <span>D/C</span> <i :class="balanceSortIcon('closing_dc')"></i>
                             <div class="col-resize-handle" @mousedown.stop.prevent="startBalanceColResize($event, balanceColByKey('closing_dc'))" @click.stop></div>
                         </th>
                         <th v-show="balanceColVisible('source')" class="th-sort th-resizable" @click="sortBalance('source')"
                             :style="{width: balanceColByKey('source').width+'px', minWidth: balanceColByKey('source').width+'px'}">
-                            <span>Источник</span> <i :class="balanceSortIcon('source')"></i><span v-if="balanceSortPriority('source')" class="sort-priority">{{ balanceSortPriority('source') }}</span>
+                            <span>Источник</span> <i :class="balanceSortIcon('source')"></i>
                             <div class="col-resize-handle" @mousedown.stop.prevent="startBalanceColResize($event, balanceColByKey('source'))" @click.stop></div>
                         </th>
                         <th v-show="balanceColVisible('status')" class="th-sort th-resizable" @click="sortBalance('status')"
                             :style="{width: balanceColByKey('status').width+'px', minWidth: balanceColByKey('status').width+'px', textAlign:'center'}">
-                            <span>Статус</span> <i :class="balanceSortIcon('status')"></i><span v-if="balanceSortPriority('status')" class="sort-priority">{{ balanceSortPriority('status') }}</span>
+                            <span>Статус</span> <i :class="balanceSortIcon('status')"></i>
                             <div class="col-resize-handle" @mousedown.stop.prevent="startBalanceColResize($event, balanceColByKey('status'))" @click.stop></div>
                         </th>
                         <th v-show="balanceColVisible('comment')" class="th-sort th-resizable" @click="sortBalance('comment')"
                             :style="{width: balanceColByKey('comment').width+'px', minWidth: balanceColByKey('comment').width+'px'}">
-                            <span>Комментарий</span> <i :class="balanceSortIcon('comment')"></i><span v-if="balanceSortPriority('comment')" class="sort-priority">{{ balanceSortPriority('comment') }}</span>
+                            <span>Комментарий</span> <i :class="balanceSortIcon('comment')"></i>
                             <div class="col-resize-handle" @mousedown.stop.prevent="startBalanceColResize($event, balanceColByKey('comment'))" @click.stop></div>
                         </th>
                         <th style="width:110px;min-width:110px;text-align:right;padding-right:12px">

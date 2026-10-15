@@ -23,7 +23,7 @@ var EntriesMixin = {
             entriesLoading:     false,
             entriesLoadingMore: false,
 
-            // Составная сортировка: порядок элементов равен приоритету сортировки.
+            // Составная сортировка используется только для порядка по умолчанию.
             sorts: [
                 { field: 'value_date', dir: 'asc' },
                 { field: 'amount', dir: 'asc' }
@@ -273,18 +273,17 @@ var EntriesMixin = {
         /**
          * Меняет сортировку таблицы и перезагружает записи.
          *
-         * Новая колонка добавляется в конец составной сортировки, повторный клик
-         * по уже выбранной колонке переключает её направление.
+         * Клик по колонке заменяет стандартную составную сортировку сортировкой
+         * только по этой колонке. Повторный клик переключает направление.
          *
          * @param {string} col Ключ колонки API-сортировки.
          * @returns {void}
          */
         sortBy: function (col) {
-            var index = this.sorts.findIndex(function (item) { return item.field === col; });
-            if (index !== -1) {
-                this.sorts[index].dir = this.sorts[index].dir === 'asc' ? 'desc' : 'asc';
+            if (this.sorts.length === 1 && this.sorts[0].field === col) {
+                this.sorts[0].dir = this.sorts[0].dir === 'asc' ? 'desc' : 'asc';
             } else {
-                this.sorts.push({ field: col, dir: 'asc' });
+                this.sorts = [{ field: col, dir: 'asc' }];
             }
             this.loadEntries(true);
         },
@@ -312,17 +311,6 @@ var EntriesMixin = {
             var item = this.sorts.find(function (sort) { return sort.field === col; });
             if (!item) return 'fas fa-sort';
             return item.dir === 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down';
-        },
-
-        /**
-         * Возвращает приоритет колонки в составной сортировке (начиная с 1).
-         *
-         * @param {string} col Ключ колонки.
-         * @returns {number|null} Приоритет или `null`, если колонка не выбрана.
-         */
-        sortPriority: function (col) {
-            var index = this.sorts.findIndex(function (item) { return item.field === col; });
-            return index === -1 ? null : index + 1;
         },
 
         /**

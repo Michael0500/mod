@@ -1503,23 +1503,6 @@ body.resizing-col, body.resizing-col * { cursor:col-resize !important; user-sele
 }
 .th-sort:hover i,
 .th-sort.sorted i { opacity: 1; color: #6366f1; }
-.th-sort .sort-priority {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 16px;
-    height: 16px;
-    margin-left: 4px;
-    padding: 0 4px;
-    border-radius: 8px;
-    background: #6366f1;
-    color: #fff;
-    font-size: 9px;
-    font-weight: 700;
-    line-height: 1;
-    vertical-align: middle;
-}
-
 /* Моно-ячейки с обрезкой */
 .td-mono-truncate {
     max-width: 80px;
