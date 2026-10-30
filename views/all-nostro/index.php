@@ -134,13 +134,13 @@ $initJson = json_encode($initData, JSON_UNESCAPED_UNICODE);
                 <span class="summary-sep">|</span>
                 <span class="summary-item">
                     <span class="mono" style="color:#6366f1">L:</span>
-                    <strong class="mono">{{ formatAmount(selectionSummary.sum_ledger) }}</strong>
+                    <strong class="mono">{{ formatAmount(selectionSummary.sum_ledger, selectionSummary.currency) }}</strong>
                     <span style="font-size:10px;color:#9ca3af">({{ selectionSummary.cnt_ledger }})</span>
                 </span>
                 <span class="summary-sep">|</span>
                 <span class="summary-item">
                     <span class="mono" style="color:#0284c7">S:</span>
-                    <strong class="mono">{{ formatAmount(selectionSummary.sum_statement) }}</strong>
+                    <strong class="mono">{{ formatAmount(selectionSummary.sum_statement, selectionSummary.currency) }}</strong>
                     <span style="font-size:10px;color:#9ca3af">({{ selectionSummary.cnt_statement }})</span>
                 </span>
         </template>
@@ -148,18 +148,18 @@ $initJson = json_encode($initData, JSON_UNESCAPED_UNICODE);
             <span class="summary-sep">|</span>
             <span class="summary-item">
                 <span class="mono" style="color:#ef4444">D:</span>
-                <strong class="mono">{{ formatAmount(selectionSummary.sum_debit) }}</strong>
+                <strong class="mono">{{ formatAmount(selectionSummary.sum_debit, selectionSummary.currency) }}</strong>
             </span>
             <span class="summary-sep">|</span>
             <span class="summary-item">
                 <span class="mono" style="color:#10b981">C:</span>
-                <strong class="mono">{{ formatAmount(selectionSummary.sum_credit) }}</strong>
+                <strong class="mono">{{ formatAmount(selectionSummary.sum_credit, selectionSummary.currency) }}</strong>
             </span>
         </template>
         <span class="summary-sep">|</span>
         <span class="summary-item" :style="summaryBalanced ? 'color:#059669;font-weight:700' : 'color:#d97706;font-weight:700'">
             <i :class="summaryBalanced ? 'fas fa-check-circle' : 'fas fa-exclamation-triangle'"></i>
-            Разница: <span style="font-family:monospace">{{ formatAmount(summaryDiff) }}</span>
+            Разница: <span style="font-family:monospace">{{ formatAmount(summaryDiff, selectionSummary.currency) }}</span>
             <span v-if="summaryBalanced" style="font-weight:500;margin-left:4px">— готово!</span>
             <span v-else style="font-weight:500;margin-left:4px">— квитование недоступно</span>
         </span>
@@ -305,7 +305,7 @@ $initJson = json_encode($initData, JSON_UNESCAPED_UNICODE);
                             </span>
                         </td>
                         <td v-show="tblColVisible('amount')" style="text-align:right;font-family:monospace;font-weight:600;color:#1a202c;white-space:nowrap">
-                            {{ formatAmount(entry.amount) }}
+                            {{ formatAmount(entry.amount, entry.currency) }}
                         </td>
                         <td v-show="tblColVisible('currency')"><span style="font-size:11px;color:#6b7280;font-weight:700">{{ entry.currency }}</span></td>
                         <td v-show="tblColVisible('value_date')" style="white-space:nowrap;font-size:12px">{{ fmtDate(entry.value_date) }}</td>

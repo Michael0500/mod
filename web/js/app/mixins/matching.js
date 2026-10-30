@@ -209,6 +209,7 @@ var MatchingMixin = {
             var cL = 0, cS = 0;
             var sD = 0, sCr = 0, cD = 0, cCr = 0;
             var accountIds = {};
+            var currencies = {};
             (self.entries || []).forEach(function (e) {
                 if (self.selectedIds.indexOf(e.id) === -1) return;
                 var a = parseFloat(e.amount || 0);
@@ -221,21 +222,26 @@ var MatchingMixin = {
                 }
                 if (e.dc === 'Debit') { sD += a; cD++; } else { sCr += a; cCr++; }
                 accountIds[e.account_id] = true;
+                currencies[String(e.currency || '').toUpperCase()] = true;
             });
-            var netL = Math.round((lDebit - lCredit) * 100) / 100;
-            var netS = Math.round((sDebit - sCredit) * 100) / 100;
+            var currencyCodes = Object.keys(currencies);
+            var summaryCurrency = currencyCodes.length === 1 ? currencyCodes[0] : '';
+            var factor = Math.pow(10, self.currencyFractionalDigit(summaryCurrency));
+            var netL = Math.round((lDebit - lCredit) * factor) / factor;
+            var netS = Math.round((sDebit - sCredit) * factor) / factor;
             self.selectionSummary = {
                 sum_ledger:    netL,
                 sum_statement: netS,
-                diff:          Math.round((netL + netS) * 100) / 100,
+                diff:          Math.round((netL + netS) * factor) / factor,
                 cnt_ledger:    cL,
                 cnt_statement: cS,
-                sum_debit:     Math.round(sD * 100) / 100,
+                sum_debit:     Math.round(sD * factor) / factor,
                 cnt_debit:     cD,
-                sum_credit:    Math.round(sCr * 100) / 100,
+                sum_credit:    Math.round(sCr * factor) / factor,
                 cnt_credit:    cCr,
-                diff_dc:       Math.round((sD - sCr) * 100) / 100,
+                diff_dc:       Math.round((sD - sCr) * factor) / factor,
                 same_account:  Object.keys(accountIds).length === 1,
+                currency:      summaryCurrency,
             };
         },
 
@@ -275,7 +281,7 @@ var MatchingMixin = {
                     icon: 'warning',
                     title: 'Квитование невозможно',
                     html: 'Выбранные записи имеют дисбаланс сумм.<br>' +
-                        'Разница: <b>' + self.formatAmount(Math.abs(self.summaryDiff)) + '</b>.<br>' +
+                        'Разница: <b>' + self.formatAmount(Math.abs(self.summaryDiff), self.selectionSummary.currency) + '</b>.<br>' +
                         'Сначала устраните дисбаланс, затем повторите квитование.',
                     confirmButtonText: 'Понятно',
                     confirmButtonColor: '#6366f1'

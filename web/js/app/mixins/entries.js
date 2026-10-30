@@ -876,13 +876,13 @@ var EntriesMixin = {
                     position: 'top-end', timer: 2000, showConfirmButton: false });
                 return;
             }
-            self.editingEntry.amount = self.normalizeAmount(self.editingEntry.amount);
+            self.editingEntry.amount = self.normalizeAmount(self.editingEntry.amount, self.editingEntry.currency);
             if (self.editingEntry.amount === '' || self.editingEntry.amount === null || isNaN(parseFloat(self.editingEntry.amount))) {
                 Swal.fire({ icon: 'warning', title: 'Укажите сумму', toast: true,
                     position: 'top-end', timer: 2000, showConfirmButton: false });
                 return;
             }
-            var amountError = self.validateMoneyAmount(self.editingEntry.amount, false);
+            var amountError = self.validateMoneyAmount(self.editingEntry.amount, false, self.editingEntry.currency);
             if (amountError) {
                 Swal.fire({ icon: 'warning', title: amountError, toast: true,
                     position: 'top-end', timer: 3500, showConfirmButton: false });
@@ -1024,13 +1024,13 @@ var EntriesMixin = {
          * Форматирует сумму для таблицы записей.
          *
          * Не использует `parseFloat` для итоговой строки, чтобы не терять
-         * точность отображения decimal(20,2). Некорректные значения показываются
+         * точность отображения decimal(26,5). Некорректные значения показываются
          * как прочерк.
          *
          * @param {string|number|null|undefined} val Значение суммы из API.
          * @returns {string} Сумма в формате `1,234.00` или `—`.
          */
-        formatAmount: function (val) {
+        formatAmount: function (val, currency) {
             if (val === null || val === undefined || val === '') return '—';
             var s = String(val).trim();
             var sign = '';
@@ -1042,7 +1042,8 @@ var EntriesMixin = {
             if (!/^\d+(\.\d+)?$/.test(s)) return '—';
             var parts = s.split('.');
             var intPart = parts[0].replace(/^0+(?=\d)/, '').replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-            var decPart = ((parts[1] || '') + '00').slice(0, 2);
+            var scale = this.currencyFractionalDigit(currency);
+            var decPart = ((parts[1] || '') + '00000').slice(0, scale);
             return sign + intPart + '.' + decPart;
         },
 
@@ -1055,8 +1056,8 @@ var EntriesMixin = {
          * @param {string|number|null|undefined} val Пользовательский ввод суммы.
          * @returns {string} Нормализованная сумма в формате с точкой.
          */
-        normalizeAmount: function (val) {
-            return this.normalizeMoneyInput(val, false);
+        normalizeAmount: function (val, currency) {
+            return this.normalizeMoneyInput(val, false, currency);
         },
 
         /**
@@ -1064,13 +1065,13 @@ var EntriesMixin = {
          *
          * Если встречаются точка и запятая, крайний правый разделитель считается
          * десятичным, остальные удаляются. Возвращает строку с двумя знаками
-         * после точки, чтобы сохранить контракт decimal(20,2).
+         * после точки согласно `fractional_digit` выбранной валюты.
          *
          * @param {string|number|null|undefined} val Пользовательский ввод.
          * @param {boolean} allowNegative Разрешать ли отрицательные значения.
          * @returns {string} Нормализованное значение или пустая строка.
          */
-        normalizeMoneyInput: function (val, allowNegative) {
+        normalizeMoneyInput: function (val, allowNegative, currency) {
             if (val === null || val === undefined || val === '') return '';
             var s = String(val).trim();
             var sign = '';
@@ -1095,13 +1096,15 @@ var EntriesMixin = {
             } else if (hasComma) {
                 var commaCount = (s.match(/,/g) || []).length;
                 var afterLast = s.slice(s.lastIndexOf(',') + 1);
-                s = (commaCount === 1 && afterLast.length <= 2) ? s.replace(',', '.') : s.replace(/,/g, '');
+                s = (commaCount === 1 && afterLast.length <= 5) ? s.replace(',', '.') : s.replace(/,/g, '');
             }
 
             if (s.charAt(0) === '.') s = '0' + s;
-            if (/^\d+(\.\d{0,2})?$/.test(s)) {
+            var scale = this.currencyFractionalDigit(currency);
+            var amountPattern = new RegExp('^\\d+(\\.\\d{0,' + scale + '})?$');
+            if (amountPattern.test(s)) {
                 var parts = s.split('.');
-                s = parts[0] + '.' + ((parts[1] || '') + '00').slice(0, 2);
+                s = parts[0] + (scale > 0 ? '.' + ((parts[1] || '') + '00000').slice(0, scale) : '');
             }
             return sign + s;
         },
@@ -1109,21 +1112,22 @@ var EntriesMixin = {
         /**
          * Валидирует денежное значение по ограничениям базы.
          *
-         * Проверяет числовой формат, максимум 2 знака после точки и не более
-         * 18 цифр до точки для decimal(20,2).
+         * Проверяет числовой формат, валютную шкалу и не более
+         * 18 цифр до точки при ёмкости БД decimal(26,5).
          *
          * @param {string|number|null|undefined} val Значение суммы.
          * @param {boolean} allowNegative Разрешать ли отрицательные значения.
          * @returns {string} Текст ошибки или пустая строка.
          */
-        validateMoneyAmount: function (val, allowNegative) {
-            var s = this.normalizeMoneyInput(val, allowNegative);
-            var re = allowNegative ? /^-?\d+(\.\d{1,2})?$/ : /^\d+(\.\d{1,2})?$/;
-            if (!re.test(s)) return 'Сумма должна быть числом с максимум 2 знаками после точки';
+        validateMoneyAmount: function (val, allowNegative, currency) {
+            var scale = this.currencyFractionalDigit(currency);
+            var s = this.normalizeMoneyInput(val, allowNegative, currency);
+            var re = new RegExp((allowNegative ? '^-?' : '^') + '\\d+' + (scale > 0 ? '(\\.\\d{1,' + scale + '})?' : '') + '$');
+            if (!re.test(s)) return 'Сумма должна быть числом с максимум ' + scale + ' знаками после точки';
 
             var integerPart = s.replace('-', '').split('.')[0].replace(/^0+/, '');
             if (integerPart.length > 18) {
-                return 'Сумма слишком большая: максимум 18 цифр до точки и 2 после';
+                return 'Сумма слишком большая: максимум 18 цифр до точки и ' + scale + ' после';
             }
             return '';
         },

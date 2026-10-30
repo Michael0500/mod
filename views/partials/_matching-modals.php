@@ -368,7 +368,7 @@ $showBankSelect = $showBankSelect ?? false;
                         · <span :style="historyEntry.dc==='Debit'?'color:#dc2626;font-weight:600':'color:#059669;font-weight:600'">
                             {{ historyEntry.dc === 'Debit' ? 'D' : 'C' }}
                           </span>
-                        · {{ formatAmount(historyEntry.amount) }} {{ historyEntry.currency }}
+                        · {{ formatAmount(historyEntry.amount, historyEntry.currency) }} {{ historyEntry.currency }}
                     </span>
                 </h5>
                 <button type="button" class="btn-close" @click="closeEntryHistoryModal"></button>
@@ -477,10 +477,10 @@ $showBankSelect = $showBankSelect ?? false;
                             <td :class="histCellClass(item, 'amount')" style="text-align:right">
                                 <div class="hist-cell-inner" style="align-items:flex-end">
                                     <div v-if="isChanged(item, 'amount')" class="hist-old-val" style="font-family:monospace">
-                                        {{ formatAmount(getOldVal(item, 'amount')) }}
+                                        {{ formatAmount(getOldVal(item, 'amount'), getOldVal(item, 'currency') || historyEntry.currency) }}
                                     </div>
                                     <div class="hist-new-val" style="font-family:monospace;font-weight:600">
-                                        {{ formatAmount(getSnapVal(item, 'amount')) }}
+                                        {{ formatAmount(getSnapVal(item, 'amount'), getSnapVal(item, 'currency') || historyEntry.currency) }}
                                     </div>
                                 </div>
                             </td>
@@ -705,7 +705,7 @@ $showBankSelect = $showBankSelect ?? false;
                                     <span :class="e.dc==='Debit'?'badge-debit':'badge-credit'">{{ e.dc==='Debit'?'D':'C' }}</span>
                                 </td>
                                 <td>{{ e.account_name || '—' }}</td>
-                                <td style="text-align:right;font-family:monospace;font-weight:600">{{ formatAmount(e.amount) }}</td>
+                                <td style="text-align:right;font-family:monospace;font-weight:600">{{ formatAmount(e.amount, e.currency) }}</td>
                                 <td><span style="font-size:11px;color:#6b7280;font-weight:700">{{ e.currency }}</span></td>
                                 <td style="white-space:nowrap">{{ fmtDate(e.value_date) }}</td>
                                 <td style="white-space:nowrap">{{ fmtDate(e.post_date) }}</td>

@@ -289,11 +289,11 @@ $currencySelectId = $currencySelectId ?? 'balance-filter-currency-select2';
                         <td v-show="balanceColVisible('currency')" style="font-weight:600;font-size:12px">{{ row.currency }}</td>
                         <td v-show="balanceColVisible('value_date')" style="white-space:nowrap;font-size:12px">{{ row.value_date_fmt || row.value_date }}</td>
                         <td v-show="balanceColVisible('statement_number')" class="td-mono-truncate" :title="row.statement_number">{{ row.statement_number||'—' }}</td>
-                        <td v-show="balanceColVisible('opening_balance')" style="text-align:right;font-family:monospace;font-size:12px">{{ formatBalanceAmount(row.opening_balance) }}</td>
+                        <td v-show="balanceColVisible('opening_balance')" style="text-align:right;font-family:monospace;font-size:12px">{{ formatBalanceAmount(row.opening_balance, row.currency) }}</td>
                         <td v-show="balanceColVisible('opening_dc')" style="text-align:center">
                             <span :style="row.opening_dc==='D'?'color:#ef4444;font-weight:700;font-size:11px':'color:#059669;font-weight:700;font-size:11px'">{{ row.opening_dc }}</span>
                         </td>
-                        <td v-show="balanceColVisible('closing_balance')" style="text-align:right;font-family:monospace;font-size:12px">{{ formatBalanceAmount(row.closing_balance) }}</td>
+                        <td v-show="balanceColVisible('closing_balance')" style="text-align:right;font-family:monospace;font-size:12px">{{ formatBalanceAmount(row.closing_balance, row.currency) }}</td>
                         <td v-show="balanceColVisible('closing_dc')" style="text-align:center">
                             <span :style="row.closing_dc==='D'?'color:#ef4444;font-weight:700;font-size:11px':'color:#059669;font-weight:700;font-size:11px'">{{ row.closing_dc }}</span>
                         </td>
@@ -396,7 +396,7 @@ $currencySelectId = $currencySelectId ?? 'balance-filter-currency-select2';
                         <div>
                             <label class="filter-label">Opening Balance *</label>
                             <input type="text" class="filter-input" v-model="editingBalance.opening_balance"
-                                   @blur="editingBalance.opening_balance = normalizeMoneyInput(editingBalance.opening_balance, true)"
+                                   @blur="editingBalance.opening_balance = normalizeMoneyInput(editingBalance.opening_balance, true, editingBalance.currency)"
                                    placeholder="0.00" style="width:100%;font-family:monospace">
                         </div>
                         <div>
@@ -411,7 +411,7 @@ $currencySelectId = $currencySelectId ?? 'balance-filter-currency-select2';
                         <div>
                             <label class="filter-label">Closing Balance *</label>
                             <input type="text" class="filter-input" v-model="editingBalance.closing_balance"
-                                   @blur="editingBalance.closing_balance = normalizeMoneyInput(editingBalance.closing_balance, true)"
+                                   @blur="editingBalance.closing_balance = normalizeMoneyInput(editingBalance.closing_balance, true, editingBalance.currency)"
                                    placeholder="0.00" style="width:100%;font-family:monospace">
                         </div>
                         <div>
@@ -553,7 +553,7 @@ $currencySelectId = $currencySelectId ?? 'balance-filter-currency-select2';
                                              style="display:flex;gap:4px;align-items:center">
                                             <span style="color:#9ca3af;font-size:10px;text-transform:uppercase">Open:</span>
                                             <span style="font-family:monospace;text-decoration:line-through;color:#b91c1c">
-                                                    {{ formatAmount(log.old_values.opening_balance) }}
+                                                    {{ formatAmount(log.old_values.opening_balance, log.old_values.currency || historyBalance.currency) }}
                                                     {{ log.old_values.opening_dc }}
                                                 </span>
                                         </div>
@@ -561,7 +561,7 @@ $currencySelectId = $currencySelectId ?? 'balance-filter-currency-select2';
                                              style="display:flex;gap:4px;align-items:center">
                                             <span style="color:#9ca3af;font-size:10px;text-transform:uppercase">Close:</span>
                                             <span style="font-family:monospace;text-decoration:line-through;color:#b91c1c">
-                                                    {{ formatAmount(log.old_values.closing_balance) }}
+                                                    {{ formatAmount(log.old_values.closing_balance, log.old_values.currency || historyBalance.currency) }}
                                                     {{ log.old_values.closing_dc }}
                                                 </span>
                                         </div>
@@ -590,7 +590,7 @@ $currencySelectId = $currencySelectId ?? 'balance-filter-currency-select2';
                                              style="display:flex;gap:4px;align-items:center">
                                             <span style="color:#9ca3af;font-size:10px;text-transform:uppercase">Open:</span>
                                             <span style="font-family:monospace;font-weight:600;color:#059669">
-                                                    {{ formatAmount(log.new_values.opening_balance) }}
+                                                    {{ formatAmount(log.new_values.opening_balance, log.new_values.currency || historyBalance.currency) }}
                                                     {{ log.new_values.opening_dc }}
                                                 </span>
                                         </div>
@@ -598,7 +598,7 @@ $currencySelectId = $currencySelectId ?? 'balance-filter-currency-select2';
                                              style="display:flex;gap:4px;align-items:center">
                                             <span style="color:#9ca3af;font-size:10px;text-transform:uppercase">Close:</span>
                                             <span style="font-family:monospace;font-weight:600;color:#059669">
-                                                    {{ formatAmount(log.new_values.closing_balance) }}
+                                                    {{ formatAmount(log.new_values.closing_balance, log.new_values.currency || historyBalance.currency) }}
                                                     {{ log.new_values.closing_dc }}
                                                 </span>
                                         </div>

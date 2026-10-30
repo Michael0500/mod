@@ -357,7 +357,7 @@ class NostroEntryController extends BaseController
         } elseif ($hasComma) {
             $commaCount = substr_count($s, ',');
             $afterLast = substr($s, strrpos($s, ',') + 1);
-            if ($commaCount === 1 && strlen($afterLast) <= 2) {
+            if ($commaCount === 1 && strlen($afterLast) <= 5) {
                 $s = str_replace(',', '.', $s);
             } else {
                 $s = str_replace(',', '', $s);

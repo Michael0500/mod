@@ -137,7 +137,7 @@ class ReconReportController extends BaseController
      */
     public function actionExport()
     {
-        $cid = $this->cid();
+        $cid = Yii::$app->request->get('cid', $this->cid());
         if (!$cid) {
             throw new \yii\web\BadRequestHttpException('Компания не выбрана');
         }
@@ -478,7 +478,7 @@ class ReconReportController extends BaseController
             ];
 
             if ($entry->ls === NostroEntry::LS_LEDGER && $entry->dc === NostroEntry::DC_DEBIT) {
-                $row['amount'] = -(float)$entry->amount;
+                $row['amount'] = (float)$entry->amount;
                 $sections['ledger_debit'][] = $row;
             } elseif ($entry->ls === NostroEntry::LS_LEDGER) {
                 $row['amount'] = (float)$entry->amount;
@@ -492,11 +492,11 @@ class ReconReportController extends BaseController
             }
         }
 
-        $netLedgerDebit = $this->sumAmount($sections['ledger_debit']);
+        $netLedgerDebit = -$this->sumAmount($sections['ledger_debit']);
         $netLedgerCredit = $this->sumAmount($sections['ledger_credit']);
         $netStmtDebit = $this->sumAmount($sections['stmt_debit']);
         $netStmtCredit = $this->sumAmount($sections['stmt_credit']);
-        $ledgerNetAmount = $netLedgerDebit - $netLedgerCredit;
+        $ledgerNetAmount = $netLedgerDebit + $netLedgerCredit;
         $stmtNetAmount = $netStmtDebit - $netStmtCredit;
         $oiLedger = $ledgerNetAmount;
         $oiStatement = $stmtNetAmount;
