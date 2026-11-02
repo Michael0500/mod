@@ -17,10 +17,12 @@ use yii\db\ActiveRecord;
  * @property bool $match_dc
  * @property bool $match_amount
  * @property bool $match_value_date
+ * @property bool $match_post_date
  * @property bool $match_instruction_id
  * @property bool $match_end_to_end_id
  * @property bool $match_transaction_id
  * @property bool $match_message_id
+ * @property bool $match_other_id
  * @property string|null $reference_value
  * @property bool $cross_id_search
  * @property bool $id_prefix_match
@@ -69,10 +71,12 @@ class MatchingRule extends ActiveRecord
                 'match_dc',
                 'match_amount',
                 'match_value_date',
+                'match_post_date',
                 'match_instruction_id',
                 'match_end_to_end_id',
                 'match_transaction_id',
                 'match_message_id',
+                'match_other_id',
                 'cross_id_search',
                 'id_prefix_match',
                 'group_match_enabled',
@@ -105,10 +109,12 @@ class MatchingRule extends ActiveRecord
             'match_dc' => 'Противоположный Дебет/Кредит',
             'match_amount' => 'Совпадение суммы',
             'match_value_date' => 'Совпадение даты валютирования',
+            'match_post_date' => 'Совпадение даты проводки',
             'match_instruction_id' => 'Instruction ID',
             'match_end_to_end_id' => 'EndToEnd ID',
             'match_transaction_id' => 'Transaction ID',
             'match_message_id' => 'Message ID',
+            'match_other_id' => 'Other ID',
             'reference_value' => 'Значение референса',
             'cross_id_search' => 'Перекрёстный поиск ID',
             'id_prefix_match' => 'Сравнение идентификаторов по первым символам',
@@ -239,6 +245,9 @@ class MatchingRule extends ActiveRecord
         if ($this->match_value_date) {
             $parts[] = 'Дата';
         }
+        if ($this->match_post_date) {
+            $parts[] = 'Post Date';
+        }
         if ($this->match_instruction_id) {
             $parts[] = 'Instruction';
         }
@@ -250,6 +259,9 @@ class MatchingRule extends ActiveRecord
         }
         if ($this->match_message_id) {
             $parts[] = 'Message';
+        }
+        if ($this->match_other_id) {
+            $parts[] = 'Other ID';
         }
         if ($this->reference_value !== null && $this->reference_value !== '') {
             $parts[] = 'Reference=' . $this->reference_value;
@@ -343,7 +355,8 @@ class MatchingRule extends ActiveRecord
         return $this->match_instruction_id
             || $this->match_end_to_end_id
             || $this->match_transaction_id
-            || $this->match_message_id;
+            || $this->match_message_id
+            || $this->match_other_id;
     }
 
     public function validateReferenceValueSettings(): void
@@ -398,6 +411,9 @@ class MatchingRule extends ActiveRecord
         }
         if ($this->match_message_id) {
             $fields[] = 'message_id';
+        }
+        if ($this->match_other_id) {
+            $fields[] = 'other_id';
         }
         return $fields;
     }

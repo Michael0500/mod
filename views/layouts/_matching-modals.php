@@ -84,7 +84,7 @@
                                     <i class="fas fa-check-double me-1"></i> Обязательные условия
                                 </h6>
                                 <div class="row g-2">
-                                    <div class="col-md-4">
+                                    <div class="col-md-3">
                                         <div class="form-check">
                                             <input class="form-check-input" type="checkbox"
                                                    v-model="editingRule.match_dc" id="r_dc">
@@ -95,18 +95,25 @@
                                             </label>
                                         </div>
                                     </div>
-                                    <div class="col-md-4">
+                                    <div class="col-md-3">
                                         <div class="form-check">
                                             <input class="form-check-input" type="checkbox"
                                                    v-model="editingRule.match_amount" id="r_amount">
                                             <label class="form-check-label" for="r_amount">Совпадение суммы</label>
                                         </div>
                                     </div>
-                                    <div class="col-md-4">
+                                    <div class="col-md-3">
                                         <div class="form-check">
                                             <input class="form-check-input" type="checkbox"
                                                    v-model="editingRule.match_value_date" id="r_vdate">
                                             <label class="form-check-label" for="r_vdate">Дата валютирования</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox"
+                                                   v-model="editingRule.match_post_date" id="r_pdate">
+                                            <label class="form-check-label" for="r_pdate">Post Date</label>
                                         </div>
                                     </div>
                                 </div>
@@ -152,6 +159,13 @@
                                             <label class="form-check-label" for="r_msg">Message ID</label>
                                         </div>
                                     </div>
+                                    <div class="col-md-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox"
+                                                   v-model="editingRule.match_other_id" id="r_other">
+                                            <label class="form-check-label" for="r_other">Other ID</label>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <!-- Перекрёстный поиск -->
@@ -159,7 +173,7 @@
                                     <div class="form-check form-switch mb-2">
                                         <input class="form-check-input" type="checkbox"
                                                v-model="editingRule.id_prefix_match"
-                                               :disabled="!editingRule.match_instruction_id && !editingRule.match_end_to_end_id && !editingRule.match_transaction_id && !editingRule.match_message_id" id="r_id_prefix">
+                                               :disabled="!editingRule.match_instruction_id && !editingRule.match_end_to_end_id && !editingRule.match_transaction_id && !editingRule.match_message_id && !editingRule.match_other_id" id="r_id_prefix">
                                         <label class="form-check-label fw-semibold" for="r_id_prefix">
                                             Сравнивать Transaction ID по первым символам
                                         </label>

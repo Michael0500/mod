@@ -143,12 +143,12 @@ class MatchingService
 
             $diff = round($sumLedger + $sumStatement, 2);
             if ($diff != 0.0) {
-                return [
-                    'success' => false,
-                    'warning' => true,
-                    'diff'    => $diff,
-                    'message' => 'Суммы не сбалансированы. Разница: ' . number_format($diff, 2, '.', ',')
-                ];
+                    return [
+                        'success' => false,
+                        'warning' => true,
+                        'diff'    => $diff,
+                        'message' => 'Суммы не сбалансированы. Разница: ' . number_format($diff, 2, '.', ',')
+                    ];
             }
         }
 
@@ -883,6 +883,9 @@ class MatchingService
         $dateCondition = $rule->match_value_date
             ? 'AND a.value_date_key IS NOT DISTINCT FROM b.value_date_key'
             : '';
+        $postDateCondition = $rule->match_post_date
+            ? 'AND a.post_date_key IS NOT DISTINCT FROM b.post_date_key'
+            : '';
         $realGroupCondition = $groupBothSides ? 'AND (a.entries_count > 1 OR b.entries_count > 1)' : '';
 
         return "
@@ -903,6 +906,7 @@ class MatchingService
                  AND a.ref_value = b.ref_value
                  AND a.net_amount + b.net_amount = 0
                  {$dateCondition}
+                 {$postDateCondition}
                  {$realGroupCondition}
                  AND NOT (a.entry_ids && b.entry_ids)
                 CROSS JOIN LATERAL (
@@ -940,9 +944,10 @@ class MatchingService
                     count(*) AS entries_count,
                     ref_field,
                     ref_value,
-                    value_date_key
+                    value_date_key,
+                    post_date_key
                 FROM refs
-                GROUP BY ref_field, ref_value, value_date_key
+                GROUP BY ref_field, ref_value, value_date_key, post_date_key
                 HAVING count(*) >= {$minEntries}
             ";
         }
@@ -958,7 +963,8 @@ class MatchingService
                 1 AS entries_count,
                 ref_field,
                 ref_value,
-                value_date_key
+                value_date_key,
+                post_date_key
             FROM refs
         ";
     }
@@ -987,7 +993,7 @@ class MatchingService
                     max(id) AS id_b,
                     array_agg(id ORDER BY id)::integer[] AS entry_ids
                 FROM refs
-                GROUP BY ref_field, ref_value, value_date_key
+                GROUP BY ref_field, ref_value, value_date_key, post_date_key
                 HAVING count(*) >= 2
                    AND sum(signed_amount) = 0
             )
@@ -999,7 +1005,7 @@ class MatchingService
     {
         $fields = $rule->getSelectedReferenceFields();
         if (empty($fields)) {
-            return "SELECT NULL::integer AS id, NULL::numeric AS signed_amount, NULL::text AS ref_field, NULL::text AS ref_value, NULL::date AS value_date_key WHERE false";
+            return "SELECT NULL::integer AS id, NULL::numeric AS signed_amount, NULL::text AS ref_field, NULL::text AS ref_value, NULL::date AS value_date_key, NULL::date AS post_date_key WHERE false";
         }
 
         $branches = [];
@@ -1024,13 +1030,15 @@ class MatchingService
             }
 
             $valueDateExpr = $rule->match_value_date ? 'e.value_date' : 'NULL';
+            $postDateExpr = $rule->match_post_date ? 'e.post_date' : 'NULL';
             $branches[] = "
                 SELECT
                     e.id,
                     CASE WHEN e.dc = 'Debit' THEN e.amount ELSE -e.amount END AS signed_amount,
                     {$refField}::text AS ref_field,
                     {$refValueExpr}::text AS ref_value,
-                    {$valueDateExpr}::date AS value_date_key
+                    {$valueDateExpr}::date AS value_date_key,
+                    {$postDateExpr}::date AS post_date_key
                 FROM nostro_entries e
                 WHERE e.company_id = {$companyId}
                   AND e.ls = '{$ls}'
@@ -1533,6 +1541,9 @@ GROUP BY ls;";
         }
         if ($rule->match_value_date) {
             $conditions[] = 'a.value_date = b.value_date';
+        }
+        if ($rule->match_post_date) {
+            $conditions[] = 'a.post_date = b.post_date';
         }
         return $conditions;
     }

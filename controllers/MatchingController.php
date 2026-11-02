@@ -276,10 +276,12 @@ class MatchingController extends BaseController
                 'match_dc' => (bool) $rule->match_dc,
                 'match_amount' => (bool) $rule->match_amount,
                 'match_value_date' => (bool) $rule->match_value_date,
+                'match_post_date' => (bool) $rule->match_post_date,
                 'match_instruction_id' => (bool) $rule->match_instruction_id,
                 'match_end_to_end_id' => (bool) $rule->match_end_to_end_id,
                 'match_transaction_id' => (bool) $rule->match_transaction_id,
                 'match_message_id' => (bool) $rule->match_message_id,
+                'match_other_id' => (bool) $rule->match_other_id,
                 'reference_value' => $rule->reference_value,
                 'cross_id_search' => (bool) $rule->cross_id_search,
                 'id_prefix_match' => (bool) $rule->id_prefix_match,
@@ -322,10 +324,12 @@ class MatchingController extends BaseController
         $rule->match_dc = $this->postBool('match_dc');
         $rule->match_amount = $this->postBool('match_amount');
         $rule->match_value_date = $this->postBool('match_value_date');
+        $rule->match_post_date = $this->postBool('match_post_date');
         $rule->match_instruction_id = $this->postBool('match_instruction_id');
         $rule->match_end_to_end_id = $this->postBool('match_end_to_end_id');
         $rule->match_transaction_id = $this->postBool('match_transaction_id');
         $rule->match_message_id = $this->postBool('match_message_id');
+        $rule->match_other_id = $this->postBool('match_other_id');
         $referenceValue = Yii::$app->request->post('reference_value');
         $rule->reference_value = ($referenceValue === null || $referenceValue === '') ? null : (string) $referenceValue;
         $rule->cross_id_search = $this->postBool('cross_id_search');

@@ -36,9 +36,9 @@ var MatchingMixin = {
              */
             editingRule: {
                 id: null, name: '', pool_id: null, pool_ids: [], section: 'NRE', pair_type: 'LS',
-                match_dc: true, match_amount: true, match_value_date: true,
+                match_dc: true, match_amount: true, match_value_date: true, match_post_date: false,
                 match_instruction_id: false, match_end_to_end_id: false,
-                match_transaction_id: false, match_message_id: false,
+                match_transaction_id: false, match_message_id: false, match_other_id: false,
                 reference_value: '',
                 group_match_enabled: false, group_ls_type: null,
                 cross_id_search: false, id_prefix_match: false, id_prefix_length: null, is_active: true, priority: 100, description: ''
@@ -785,9 +785,9 @@ var MatchingMixin = {
 
             this.editingRule = {
                 id: null, name: '', pool_id: autoPoolIds.length === 1 ? autoPoolIds[0] : null, pool_ids: autoPoolIds, section: 'NRE', pair_type: 'LS',
-                match_dc: true, match_amount: true, match_value_date: true,
+                match_dc: true, match_amount: true, match_value_date: true, match_post_date: false,
                 match_instruction_id: false, match_end_to_end_id: false,
-                match_transaction_id: false, match_message_id: false,
+                match_transaction_id: false, match_message_id: false, match_other_id: false,
                 reference_value: '',
                 group_match_enabled: false, group_ls_type: null,
                 cross_id_search: false, id_prefix_match: false, id_prefix_length: null, is_active: true, priority: 100, description: ''
