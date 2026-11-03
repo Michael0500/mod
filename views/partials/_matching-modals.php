@@ -169,7 +169,7 @@ $showBankSelect = $showBankSelect ?? false;
                             <input class="form-check-input" type="checkbox" v-model="editingRule.id_prefix_match"
                                    :disabled="!editingRule.match_instruction_id && !editingRule.match_end_to_end_id && !editingRule.match_transaction_id && !editingRule.match_message_id && !editingRule.match_other_id" id="r_id_prefix">
                             <label class="form-check-label" for="r_id_prefix" style="font-weight:600 !important">
-                                Сравнивать Transaction ID по первым символам
+                                Сравнивать референсы по первым символам
                             </label>
                         </div>
                         <div class="row g-2" v-if="editingRule.id_prefix_match">
@@ -181,7 +181,7 @@ $showBankSelect = $showBankSelect ?? false;
                             </div>
                         </div>
                         <div style="font-size:11.5px;color:#9ca3af;margin-top:3px;margin-left:42px;margin-bottom:10px">
-                            Используется только для Transaction ID. Сравниваются первые N символов, начиная с первого.
+                            Используется для референсов. Сравниваются первые N символов, начиная с первого.
                         </div>
                         <div class="form-check form-switch">
                             <input class="form-check-input" type="checkbox" v-model="editingRule.cross_id_search" id="r_cross">
@@ -292,11 +292,13 @@ $showBankSelect = $showBankSelect ?? false;
                     <div class="col-md-3">
                         <label class="form-label-sm">Сумма <span class="required-star">*</span></label>
                         <input type="text" class="form-control-sm-custom" v-model="editingEntry.amount"
-                               placeholder="0.00" @blur="editingEntry.amount = normalizeAmount(editingEntry.amount)">
+                               :placeholder="moneyInputPlaceholder(editingEntry.currency)"
+                               @blur="editingEntry.amount = normalizeAmount(editingEntry.amount, editingEntry.currency)">
                     </div>
                     <div class="col-md-3">
                         <label class="form-label-sm">Валюта <span class="required-star">*</span></label>
-                        <select class="form-control-sm-custom" v-model="editingEntry.currency">
+                        <select class="form-control-sm-custom" v-model="editingEntry.currency"
+                                @change="editingEntry.amount = formatMoneyInputValue(editingEntry.amount, editingEntry.currency)">
                             <option value="">— выберите —</option>
                             <option v-for="c in dictCurrencies" :key="c.code" :value="c.code">{{ c.code }}</option>
                         </select>
