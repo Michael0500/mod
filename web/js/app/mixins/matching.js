@@ -16,6 +16,7 @@ var MatchingMixin = {
     data: function () {
         return {
             selectedIds:      [],
+            unmatchRunning:   false,
             selectionSummary: null,
             matchGroupEntries: [],
             matchGroupId:      null,
@@ -67,6 +68,19 @@ var MatchingMixin = {
     },
 
     computed: {
+        /** Все выбранные строки, включая ещё не загруженные в таблицу. */
+        selectedEntries: function () {
+            var ids = new Set(this.selectedIds);
+            return (this.selectionEntries || this.entries || []).filter(function (e) {
+                return ids.has(e.id);
+            });
+        },
+        /** Расквитование допускает выбор одной стороны пары или группы. */
+        canUnmatchSelection: function () {
+            return !this.selectionLoading && !this.unmatchRunning && this.selectedEntries.some(function (e) {
+                return !!e.match_id;
+            });
+        },
         /**
          * Возвращает раздел компании пользователя, влияющий на проверку баланса.
          *
@@ -84,6 +98,7 @@ var MatchingMixin = {
          * @returns {boolean} `true`, если кнопка квитования может быть активна.
          */
         hasSelection: function () {
+            if (this.selectionLoading || this.unmatchRunning || !this.matchValidity.ok) return false;
             // Разрешаем 1 запись если diff = 0 (например, сумма записи = 0)
             if (this.selectedIds.length === 1 && this.selectionSummary && this.summaryDiff === 0) {
                 return true;
@@ -128,10 +143,11 @@ var MatchingMixin = {
             var ids = this.selectedIds || [];
             if (!ids.length) return { ok: true, reason: '' };
 
-            var entries = (this.entries || []).filter(function (e) {
-                return ids.indexOf(e.id) !== -1;
-            });
+            var entries = this.selectedEntries;
             if (!entries.length) return { ok: true, reason: '' };
+            if (entries.some(function (e) { return e.match_status !== 'U'; })) {
+                return { ok: false, reason: 'Для квитования выберите только несквитованные записи' };
+            }
 
             var currencies = {};
             var pools      = {};
@@ -170,6 +186,7 @@ var MatchingMixin = {
          * @returns {void}
          */
         toggleEntrySelection: function (id) {
+            if (this.selectionLoading || this.unmatchRunning) return;
             var i = this.selectedIds.indexOf(id);
             if (i === -1) this.selectedIds.push(id);
             else          this.selectedIds.splice(i, 1);
@@ -190,6 +207,9 @@ var MatchingMixin = {
          * @returns {void}
          */
         clearSelection: function () {
+            this.selectionVersion++;
+            this.selectionLoading = false;
+            this.selectionEntries = null;
             this.selectedIds      = [];
             this.selectionSummary = null;
         },
@@ -211,8 +231,7 @@ var MatchingMixin = {
             var sD = 0, sCr = 0, cD = 0, cCr = 0;
             var accountIds = {};
             var currencies = {};
-            (self.entries || []).forEach(function (e) {
-                if (self.selectedIds.indexOf(e.id) === -1) return;
+            self.selectedEntries.forEach(function (e) {
                 var a = parseFloat(e.amount || 0);
                 if (e.ls === 'L') {
                     if (e.dc === 'Debit') lDebit += a; else lCredit += a;
@@ -391,15 +410,36 @@ var MatchingMixin = {
             self.unmatchEntry(matchId);
         },
 
-        /**
-         * Расквитовывает все активные записи с указанным `match_id`.
-         *
-         * После подтверждения вызывает POST `unmatch`; сервер очищает `match_id`,
-         * `matched_at`, возвращает `match_status = U` и пишет аудит.
-         *
-         * @param {string} matchId Идентификатор группы квитования.
-         * @returns {void}
-         */
+        /** Подтверждает массовое расквитование всех затронутых MATCH_ID. */
+        unmatchSelected: function () {
+            var self = this;
+            if (!self.canUnmatchSelection) return;
+            var ids = self.selectedIds.slice();
+            self.unmatchRunning = true;
+            return Swal.fire({
+                title: 'Массовое расквитование',
+                text: 'Выбрано записей: ' + ids.length + '. Расквитовать все пары и группы с MATCH_ID выбранных записей? '
+                    + 'Будут расквитованы также связанные записи вне фильтра и за пределами загруженной таблицы. '
+                    + 'Несквитованные записи будут пропущены.',
+                icon: 'warning', showCancelButton: true,
+                confirmButtonColor: '#ef4444', confirmButtonText: 'Ок', cancelButtonText: 'Отмена'
+            }).then(function (r) {
+                if (!r.isConfirmed) return;
+                return SmartMatchApi.post(window.AppRoutes.unmatchSelected, { ids: ids }).then(function (res) {
+                    if (res.success) {
+                        self.loadEntries(true);
+                        Swal.fire({ icon: 'success', title: res.message, toast: true,
+                            position: 'top-end', timer: 3000, showConfirmButton: false });
+                    } else {
+                        Swal.fire({ icon: 'error', title: 'Расквитование не выполнено', text: res.message });
+                    }
+                });
+            }).catch(function () {
+                Swal.fire({ icon: 'error', title: 'Ошибка сети', text: 'Не удалось выполнить расквитование. Обновите таблицу и проверьте состояние записей.' });
+            }).finally(function () { self.unmatchRunning = false; });
+        },
+
+        /** Расквитовывает активную группу по MATCH_ID после подтверждения. */
         unmatchEntry: function (matchId) {
             if (!matchId) return;
             var self = this;
