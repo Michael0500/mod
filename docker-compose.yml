@@ -1,0 +1,330 @@
+services:
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-sso}
+      POSTGRES_USER: ${POSTGRES_USER:-sso}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sso}
+    volumes:
+      - postgres17_data:/var/lib/postgresql/data
+      - tls_data:/tls:ro
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/tls/server.crt", "-c", "ssl_key_file=/tls/server.key"]
+    depends_on:
+      tls-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sso} -d ${POSTGRES_DB:-sso}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/run/postgresql
+    security_opt:
+      - no-new-privileges:true
+
+  app:
+    build:
+      context: .
+      target: production
+      args:
+        PHP_VERSION: ${PHP_VERSION:-8.4}
+        PHP_DEBIAN_SUITE: ${PHP_DEBIAN_SUITE:-bookworm}
+    image: sso-php-app:latest
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      SSO_ENV: ${SSO_ENV:-prod}
+      SSO_DATABASE_URL: ${SSO_DATABASE_URL}
+      SSO_DEPLOYMENT_EXPECTED_ISSUER: ${SSO_DEPLOYMENT_EXPECTED_ISSUER:-}
+      SSO_MAINTENANCE_FILE: /maintenance/state
+    volumes:
+      - maintenance_state:/maintenance:ro
+      - tls_data:/tls:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      default:
+      edge:
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/runtime:uid=33,gid=33,mode=0750
+      - /app/web/assets:uid=33,gid=33,mode=0750
+    security_opt:
+      - no-new-privileges:true
+
+  test:
+    build:
+      context: .
+      target: test
+      args:
+        PHP_VERSION: ${PHP_VERSION:-8.4}
+        PHP_DEBIAN_SUITE: ${PHP_DEBIAN_SUITE:-bookworm}
+    image: sso-php-test:latest
+    profiles: ["test"]
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      SSO_ENV: test
+      SSO_DATABASE_URL: ""
+      SSO_DB_NAME: sso_test
+      SSO_ISSUER: http://127.0.0.1:8081
+      SSO_API_AUDIENCE: http://127.0.0.1:8081/api
+      SSO_JWT_SECRET: test-jwt-secret-at-least-32-characters
+      SSO_ENCRYPTION_KEY: test-encryption-key-at-least-32-chars
+      SSO_COOKIE_SECURE: "false"
+      SSO_CACHE_DRIVER: file
+    depends_on:
+      postgres:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/runtime:uid=33,gid=33,mode=0750
+      - /app/web/assets:uid=33,gid=33,mode=0750
+    security_opt:
+      - no-new-privileges:true
+
+  browser-app:
+    image: sso-php-test:latest
+    profiles: ["browser"]
+    environment:
+      SSO_ENV: test
+      SSO_DATABASE_URL: ""
+      SSO_DB_NAME: sso_browser_test
+      SSO_ISSUER: http://browser-app:8081
+      SSO_API_AUDIENCE: http://browser-app:8081/api
+      SSO_JWT_SECRET: browser-test-jwt-secret-at-least-32-characters
+      SSO_ENCRYPTION_KEY: browser-test-encryption-key-32-chars
+      SSO_COOKIE_SECURE: "false"
+      SSO_CACHE_DRIVER: file
+      SSO_RATE_LIMIT_PER_MINUTE: 1000
+      SSO_RATE_LIMIT_BURST: 1000
+    command:
+      - sh
+      - -lc
+      - php scripts/ci/prepare_test_database.php && php yii migrate --interactive=0 && exec php -S 0.0.0.0:8081 -t web web/router.php
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(@file_get_contents('http://127.0.0.1:8081/health/live') === false ? 1 : 0);"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/runtime:uid=33,gid=33,mode=0750
+      - /app/web/assets:uid=33,gid=33,mode=0750
+    security_opt:
+      - no-new-privileges:true
+
+  browser-test:
+    build:
+      context: .
+      dockerfile: tests/Browser/Dockerfile
+    image: sso-php-browser-test:latest
+    profiles: ["browser"]
+    environment:
+      BROWSER_BASE_URL: http://browser-app:8081
+    depends_on:
+      browser-app:
+        condition: service_healthy
+    ipc: host
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/nginx/Dockerfile
+    image: sso-php-web:latest
+    restart: unless-stopped
+    depends_on:
+      - app
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health/live >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      default:
+      edge:
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx:uid=101,gid=101,mode=0750
+      - /var/run:uid=101,gid=101,mode=0750
+    security_opt:
+      - no-new-privileges:true
+
+  migrate:
+    image: sso-php-app:latest
+    profiles: ["operations"]
+    env_file:
+      - path: .env
+        required: false
+    command: ["php", "yii", "migrate", "--interactive=0"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/runtime:uid=33,gid=33,mode=0750
+    security_opt:
+      - no-new-privileges:true
+
+  cleanup-scheduler:
+    image: sso-php-app:latest
+    profiles: ["operations"]
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      SSO_ENV: ${SSO_ENV:-prod}
+      SSO_DATABASE_URL: ${SSO_DATABASE_URL}
+    command:
+      - /bin/sh
+      - -lc
+      - while true; do php yii cleanup/run; sleep "$${SSO_CLEANUP_INTERVAL:-3600}"; done
+    healthcheck:
+      test: ["CMD", "php", "yii", "cleanup/status", "--max-age=7200"]
+      interval: 5m
+      timeout: 15s
+      retries: 3
+      start_period: 2m
+    depends_on:
+      postgres:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/runtime:uid=33,gid=33,mode=0750
+    security_opt:
+      - no-new-privileges:true
+
+  tls-init:
+    image: sso-php-app:latest
+    restart: "no"
+    user: "0:0"
+    volumes:
+      - tls_data:/tls
+    command: >-
+      sh -lc "if [ ! -s /tls/server.crt ] || [ ! -s /tls/server.key ]; then
+      openssl req -x509 -newkey rsa:2048 -sha256 -nodes -days 825
+      -subj '/CN=localhost'
+      -addext 'subjectAltName=DNS:localhost,DNS:postgres,IP:127.0.0.1'
+      -keyout /tls/server.key -out /tls/server.crt;
+      fi;
+      chown 999:999 /tls/server.crt /tls/server.key;
+      chmod 644 /tls/server.crt; chmod 600 /tls/server.key"
+
+  https-proxy:
+    image: nginxinc/nginx-unprivileged:1.27-alpine-slim
+    restart: unless-stopped
+    ports:
+      - "8443:8443"
+    volumes:
+      - ./docker/nginx/https.conf:/etc/nginx/conf.d/default.conf:ro
+      - tls_data:/tls:ro
+    depends_on:
+      web:
+        condition: service_started
+      tls-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- --no-check-certificate https://127.0.0.1:8443/health/live >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      edge:
+        ipv4_address: 172.31.250.10
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx:uid=101,gid=101,mode=0750
+      - /var/run:uid=101,gid=101,mode=0750
+    security_opt:
+      - no-new-privileges:true
+
+  backup-restore-test:
+    image: postgres:17
+    profiles:
+      - operations
+    restart: "no"
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-sso}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-sso}
+      SOURCE_DB: ${POSTGRES_DB:-sso}
+    volumes:
+      - ./docker/postgres/test-backup-restore.sh:/usr/local/bin/test-backup-restore:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "/usr/local/bin/test-backup-restore"]
+
+  maintenance-on:
+    image: sso-php-app:latest
+    profiles:
+      - operations
+    restart: "no"
+    volumes:
+      - maintenance_state:/maintenance
+    command: ["/bin/sh", "-lc", "umask 077 && touch /maintenance/state && chmod 600 /maintenance/state"]
+
+  maintenance-off:
+    image: sso-php-app:latest
+    profiles:
+      - operations
+    restart: "no"
+    volumes:
+      - maintenance_state:/maintenance
+    command: ["/bin/sh", "-lc", "rm -f /maintenance/state"]
+
+  ldap-test:
+    image: osixia/openldap:1.5.0
+    command:
+      - --copy-service
+    profiles:
+      - integration
+    environment:
+      LDAP_ORGANISATION: SSO Integration
+      LDAP_DOMAIN: example.org
+      LDAP_ADMIN_PASSWORD: admin-password
+      LDAP_CONFIG_PASSWORD: config-password
+      LDAP_TLS: "false"
+    volumes:
+      - ./tests/Fixtures/ldap:/container/service/slapd/assets/config/bootstrap/ldif/custom
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - ldapsearch -x -H ldap://127.0.0.1:389 -D 'cn=admin,dc=example,dc=org' -w admin-password -b 'dc=example,dc=org' '(uid=fixture-user)' dn | grep -q 'uid=fixture-user'
+      interval: 2s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  postgres17_data:
+  tls_data:
+  maintenance_state:
+
+networks:
+  edge:
+    ipam:
+      config:
+        - subnet: 172.31.250.0/24

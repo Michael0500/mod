@@ -1,0 +1,17 @@
+includes:
+    - phpstan-baseline.neon
+
+parameters:
+    phpVersion: 70400
+    level: 2
+    paths:
+        - commands
+        - components
+        - controllers
+        - models
+        - services
+    bootstrapFiles:
+        - tests/bootstrap.php
+    excludePaths:
+        analyse:
+            - runtime/*

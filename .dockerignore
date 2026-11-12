@@ -1,0 +1,10 @@
+.env
+.git
+.idea
+.vscode
+runtime/*
+!runtime/.gitignore
+web/assets/*
+!web/assets/.gitignore
+vendor
+postgres_data

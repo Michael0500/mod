@@ -1,0 +1,200 @@
+<?php
+
+namespace app\components;
+
+use yii\web\Request;
+
+class TrustedRequest extends Request
+{
+    private $limitedRawBody;
+
+    public function getRawBody()
+    {
+        if ($this->limitedRawBody === null) {
+            $limit = max(1, (int)(\Yii::$app->params['maxBodyBytes'] ?? 1048576));
+            $stream = fopen('php://input', 'rb');
+            if ($stream === false) {
+                return '';
+            }
+            try {
+                $body = stream_get_contents($stream, $limit + 1);
+                $this->limitedRawBody = $body === false ? '' : $body;
+            } finally {
+                fclose($stream);
+            }
+        }
+
+        return $this->limitedRawBody;
+    }
+
+    public function setRawBody($rawBody)
+    {
+        $this->limitedRawBody = (string)$rawBody;
+        parent::setRawBody($rawBody);
+    }
+
+    public static function trustedHostsFromCsv(string $value): array
+    {
+        $headers = [
+            'X-Forwarded-For',
+            'X-Forwarded-Host',
+            'X-Forwarded-Proto',
+            'X-Forwarded-Port',
+        ];
+        $trustedHosts = [];
+        foreach (array_filter(array_map('trim', explode(',', $value))) as $cidr) {
+            self::validateNetwork($cidr);
+            $trustedHosts[$cidr] = $headers;
+        }
+
+        return $trustedHosts;
+    }
+
+    public function getUserIP()
+    {
+        $peer = $this->hostOnly((string)($_SERVER['REMOTE_ADDR'] ?? parent::getUserIP()));
+        $trusted = $this->trustedNetworks();
+        $xff = (string)$this->headers->get('X-Forwarded-For', '');
+
+        if ($xff !== '' && $this->ipInNetworks($peer, $trusted)) {
+            $client = $this->rightmostUntrusted($xff, $trusted);
+            if ($client !== '') {
+                return $client;
+            }
+        }
+
+        return $peer;
+    }
+
+    private function trustedNetworks(): array
+    {
+        $raw = (string)($this->getTrustedProxiesParam());
+        $networks = [];
+        foreach (explode(',', $raw) as $entry) {
+            $entry = trim($entry);
+            if ($entry === '') {
+                continue;
+            }
+            if (strpos($entry, '/') === false) {
+                $entry .= strpos($entry, ':') === false ? '/32' : '/128';
+            }
+            [$network, $prefix] = explode('/', $entry, 2);
+            $packed = @inet_pton($network);
+            if ($packed === false || preg_match('/^\d+$/D', $prefix) !== 1) {
+                throw new \yii\base\InvalidConfigException('invalid trusted proxy CIDR');
+            }
+            $prefix = (int)$prefix;
+            $bytes = strlen($packed);
+            if ($prefix < 0 || $prefix > $bytes * 8 || !self::isNetworkAddress($packed, $prefix)) {
+                throw new \yii\base\InvalidConfigException('invalid trusted proxy CIDR');
+            }
+            $networks[] = [
+                'packed' => $packed,
+                'prefix' => $prefix,
+                'bytes' => $bytes,
+            ];
+        }
+
+        return $networks;
+    }
+
+    private function getTrustedProxiesParam(): string
+    {
+        return \Yii::$app->params['trustedProxies'] ?? '';
+    }
+
+    private function hostOnly(string $addr): string
+    {
+        if (strpos($addr, '[') === 0) {
+            $end = strpos($addr, ']');
+            return $end === false ? $addr : substr($addr, 1, $end - 1);
+        }
+
+        $colon = strrpos($addr, ':');
+        if ($colon !== false && strpos($addr, ':') === $colon) {
+            return substr($addr, 0, $colon);
+        }
+
+        return $addr;
+    }
+
+    private function rightmostUntrusted(string $xff, array $trusted): string
+    {
+        $parts = array_reverse(explode(',', $xff));
+        foreach ($parts as $part) {
+            $ip = $this->hostOnly(trim($part));
+            if (filter_var($ip, FILTER_VALIDATE_IP) !== false && !$this->ipInNetworks($ip, $trusted)) {
+                return $ip;
+            }
+        }
+
+        return '';
+    }
+
+    private function ipInNetworks(string $ip, array $networks): bool
+    {
+        $packedIp = @inet_pton($ip);
+        if ($packedIp === false) {
+            return false;
+        }
+
+        foreach ($networks as $network) {
+            if (strlen($packedIp) !== $network['bytes']) {
+                continue;
+            }
+            if ($this->matchesPrefix($packedIp, $network['packed'], $network['prefix'])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function matchesPrefix(string $ip, string $network, int $prefix): bool
+    {
+        $fullBytes = intdiv($prefix, 8);
+        $remainingBits = $prefix % 8;
+
+        if ($fullBytes > 0 && substr($ip, 0, $fullBytes) !== substr($network, 0, $fullBytes)) {
+            return false;
+        }
+        if ($remainingBits === 0) {
+            return true;
+        }
+
+        $mask = (0xff << (8 - $remainingBits)) & 0xff;
+        return (ord($ip[$fullBytes]) & $mask) === (ord($network[$fullBytes]) & $mask);
+    }
+
+    private static function validateNetwork(string $cidr): void
+    {
+        $entry = $cidr;
+        if (strpos($entry, '/') === false) {
+            $entry .= strpos($entry, ':') === false ? '/32' : '/128';
+        }
+        [$network, $prefix] = explode('/', $entry, 2);
+        $packed = @inet_pton($network);
+        if ($packed === false || preg_match('/^\d+$/D', $prefix) !== 1) {
+            throw new \yii\base\InvalidConfigException('invalid trusted proxy CIDR');
+        }
+        $prefix = (int)$prefix;
+        if ($prefix < 0 || $prefix > strlen($packed) * 8 || !self::isNetworkAddress($packed, $prefix)) {
+            throw new \yii\base\InvalidConfigException('invalid trusted proxy CIDR');
+        }
+    }
+
+    private static function isNetworkAddress(string $packed, int $prefix): bool
+    {
+        $fullBytes = intdiv($prefix, 8);
+        $remainingBits = $prefix % 8;
+        if ($remainingBits > 0) {
+            $hostMask = (1 << (8 - $remainingBits)) - 1;
+            if ((ord($packed[$fullBytes]) & $hostMask) !== 0) {
+                return false;
+            }
+            $fullBytes++;
+        }
+
+        return substr($packed, $fullBytes) === str_repeat("\0", strlen($packed) - $fullBytes);
+    }
+}
