@@ -35,7 +35,7 @@ jobs:
       PHP_VERSION: ${{ matrix.php }}
       PHP_DEBIAN_SUITE: ${{ matrix.debian }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build and validate runtime
         run: make build build-test runtime-check
       - name: Verify dependencies, syntax, database and HTTP flows
@@ -45,7 +45,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build production and test images
         run: make build build-test runtime-check
       - name: Static quality and repository checks
